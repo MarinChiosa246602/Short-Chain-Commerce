@@ -1,0 +1,26 @@
+# Short-Chain Commerce Dataset Configuration
+# Generated for YOLOv8 object detection
+
+path: data\yolo_dataset  # dataset root directory
+train: images/train  # train images (relative to path)
+val: images/val  # val images (relative to path)
+test: images/test  # test images (relative to path)
+
+# Classes
+names:
+  0: tomato
+  1: lettuce
+  2: carrot
+  3: pepper
+  4: onion
+  5: potato
+  6: cucumber
+  7: broccoli
+
+# Dataset information
+nc: 8  # number of classes
+roboflow:
+  license: MIT
+  project: short-chain-commerce
+  version: 1.0
+  wrap: false

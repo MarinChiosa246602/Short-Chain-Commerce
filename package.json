@@ -1,0 +1,25 @@
+{
+  "name": "short-chain-commerce",
+  "version": "1.0.0",
+  "description": "Automatic Logistics Data Generation from Visual Inputs for Short Food Supply Chains",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/",
+    "dev": "nodemon src/index.js"
+  },
+  "keywords": [
+    "logistics",
+    "food-supply-chain",
+    "computer-vision",
+    "ocr"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.0"
+  }
+}
