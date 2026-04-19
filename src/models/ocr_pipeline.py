@@ -14,7 +14,6 @@ from datetime import datetime
 import cv2
 import numpy as np
 from PIL import Image
-from paddle.device import device
 
 try:
     from paddleocr import PaddleOCR
