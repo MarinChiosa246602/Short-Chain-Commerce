@@ -136,49 +136,29 @@ class TestDataValidator:
         assert is_valid is True
         assert len(errors) == 0
 
-    def test_validate_missing_product_id(self):
-        """Test validation with missing product ID."""
-        validator = DataValidator()
-        response = ExtractionResponse(
-            products=[
-                Product(
-                    product_id="",
-                    product_name="Tomato",
-                    quantity=24,
-                    unit=UnitType.CRATE,
-                )
-            ],
-            metadata=Metadata(
-                source_farm="Farm-001",
-                destination="Market-X",
-            ),
-        )
+   # test_validate_missing_product_id — replace the whole test body:
+def test_validate_missing_product_id(self):
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        Product(product_id="", product_name="Tomato", quantity=24, unit=UnitType.CRATE)
 
-        is_valid, errors = validator.validate(response)
-        assert is_valid is False
-        assert len(errors) > 0
+# test_validate_missing_metadata — replace:
+def test_validate_missing_metadata(self):
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        Metadata(source_farm="", destination="")
 
-    def test_validate_missing_metadata(self):
-        """Test validation with missing metadata."""
-        validator = DataValidator()
-        response = ExtractionResponse(
-            products=[
-                Product(
-                    product_id="SKU-123",
-                    product_name="Tomato",
-                    quantity=24,
-                    unit=UnitType.CRATE,
-                )
-            ],
-            metadata=Metadata(
-                source_farm="",
-                destination="",
-            ),
-        )
+# test_validate_empty_product_id — replace:
+def test_validate_empty_product_id(self):
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        Product(product_id="   ", product_name="Test", quantity=10, unit=UnitType.CRATE)
 
-        is_valid, errors = validator.validate(response)
-        assert is_valid is False
-        assert len(errors) == 2
+# test_validate_bounds_below_minimum — change e["code"] to e.code:
+assert any(e.code == "BELOW_MINIMUM" for e in errors)
+
+# test_validate_bounds_above_maximum — change e["code"] to e.code:
+assert any(e.code == "EXCEEDS_MAXIMUM" for e in errors)
 
 
 class TestExtractionProcessor:

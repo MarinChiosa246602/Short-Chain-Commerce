@@ -97,44 +97,33 @@ class OCRPreprocessor:
 class TextExtractor:
     """Extract and parse text from images using OCR."""
 
-    # Date patterns for extraction — ordered from most specific to least
     DATE_PATTERNS = [
-        # Prefixed dates: EXP 15-04-2026 / BEST BEFORE 2026-01-01 / USE BY 01/01/2026
-        r"(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
-        r"(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{4}[-/]\d{1,2}[-/]\d{1,2})",
-        # Plain dates
-        r"\b(\d{1,2}[-/]\d{1,2}[-/]\d{4})\b",  # DD-MM-YYYY or MM-DD-YYYY
-        r"\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b",  # YYYY-MM-DD
-        r"\b(\d{1,2}[-/]\d{1,2}[-/]\d{2})\b",  # DD-MM-YY
-    ]
+    r'(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
+    r'(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{4}[-/]\d{1,2}[-/]\d{1,2})',
+    r'\b(\d{1,2}[-/]\d{1,2}[-/]\d{4})\b',
+    r'\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b',
+]
 
-    # Date parse formats tried in order for each extracted string
-    DATE_FORMATS = [
-        "%d-%m-%Y",
-        "%m-%d-%Y",
-        "%Y-%m-%d",
-        "%d/%m/%Y",
-        "%m/%d/%Y",
-        "%Y/%m/%d",
-        "%d-%m-%y",
-        "%m-%d-%y",
-    ]
+DATE_FORMATS = [
+    "%d-%m-%Y", "%m-%d-%Y", "%Y-%m-%d",
+    "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d",
+]
 
     # Product code patterns
-    PRODUCT_CODE_PATTERNS = [
+PRODUCT_CODE_PATTERNS = [
         r"\b([A-Z]{2,5}-?\d{3,6})\b",  # SKU-12345
         r"\b(SKU|Sku|sku)\s*:?\s*([A-Z0-9-]+)\b",  # SKU: ABC-123
         r"\b(PROD|PRODID|PID)-?\d+\b",  # PROD-12345
     ]
 
     # Quantity patterns
-    QUANTITY_PATTERNS = [
+QUANTITY_PATTERNS = [
         r"\b(\d+)\s*(?:pcs?|pieces?|units?|items?)\b",
         r"\b(\d+)\s*(?:kg|lbs?|g|oz|lb)\b",
         r"\bqty[:\s]+(\d+)\b",
     ]
 
-    def __init__(self, lang: str = "en", use_gpu: bool = False):
+def __init__(self, lang: str = "en", use_gpu: bool = False):
         """
         Initialize the text extractor.
 
@@ -145,10 +134,10 @@ class TextExtractor:
         if not PADDLEOCR_AVAILABLE:
             raise ImportError("paddleocr package is required. Install with: pip install paddleocr paddlepaddle")
 
+        device = "gpu" if use_gpu else "cpu"
         self.ocr = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu)
         self.preprocessor = OCRPreprocessor()
-
-    def extract_text(self, image: Any, enhance: bool = True) -> List[Dict[str, Any]]:
+def extract_text(self, image: Any, enhance: bool = True) -> List[Dict[str, Any]]:
         """
         Extract text from an image.
 
@@ -193,7 +182,7 @@ class TextExtractor:
 
         return texts
 
-    def extract_from_roi(
+def extract_from_roi(
         self, image: np.ndarray, bbox: Tuple[int, int, int, int], enhance: bool = True
     ) -> List[Dict[str, Any]]:
         """
@@ -210,41 +199,22 @@ class TextExtractor:
         roi = self.preprocessor.extract_roi(image, bbox)
         return self.extract_text(roi, enhance=enhance)
 
-    def parse_expiry_date(self, texts: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        """
-        Parse expiry date from extracted text.
+def parse_expiry_date(self, texts):
+    full_text = " ".join([t["text"] for t in texts])
+    for pattern in self.DATE_PATTERNS:
+        match = re.search(pattern, full_text, re.IGNORECASE)
+        if match:
+            date_str = match.group(1).replace("/", "-")
+            for fmt in self.DATE_FORMATS:
+                try:
+                    parsed = datetime.strptime(date_str, fmt)
+                    if parsed > datetime.now():
+                        return {"raw": date_str, "parsed": parsed.strftime("%Y-%m-%d"), "confidence": "high"}
+                except ValueError:
+                    continue
+    return None
 
-        Args:
-            texts: List of extracted text detections
-
-        Returns:
-            Parsed expiry date info or None
-        """
-        full_text = " ".join([t["text"] for t in texts])
-
-        for pattern in self.DATE_PATTERNS:
-            match = re.search(pattern, full_text, re.IGNORECASE)
-            if match:
-                # The date is always in the first capture group
-                date_str = match.group(1)
-                # Normalise separators to '-'
-                date_str_norm = date_str.replace("/", "-")
-
-                for fmt in self.DATE_FORMATS:
-                    try:
-                        parsed = datetime.strptime(date_str_norm, fmt)
-                        if parsed > datetime.now():
-                            return {
-                                "raw": date_str,
-                                "parsed": parsed.strftime("%Y-%m-%d"),
-                                "confidence": "high",
-                            }
-                    except ValueError:
-                        continue
-
-        return None
-
-    def parse_product_code(self, texts: List[Dict[str, Any]]) -> Optional[str]:
+def parse_product_code(self, texts: List[Dict[str, Any]]) -> Optional[str]:
         """
         Extract product code/SKU from text.
 
@@ -263,7 +233,7 @@ class TextExtractor:
 
         return None
 
-    def parse_quantity(self, texts: List[Dict[str, Any]]) -> Optional[int]:
+def parse_quantity(self, texts: List[Dict[str, Any]]) -> Optional[int]:
         """
         Extract quantity from text.
 
