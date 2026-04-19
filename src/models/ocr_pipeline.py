@@ -100,19 +100,24 @@ class TextExtractor:
     # Date patterns for extraction — ordered from most specific to least
     DATE_PATTERNS = [
         # Prefixed dates: EXP 15-04-2026 / BEST BEFORE 2026-01-01 / USE BY 01/01/2026
-        r'(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
-        r'(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{4}[-/]\d{1,2}[-/]\d{1,2})',
+        r"(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
+        r"(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{4}[-/]\d{1,2}[-/]\d{1,2})",
         # Plain dates
-        r'\b(\d{1,2}[-/]\d{1,2}[-/]\d{4})\b',   # DD-MM-YYYY or MM-DD-YYYY
-        r'\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b',   # YYYY-MM-DD
-        r'\b(\d{1,2}[-/]\d{1,2}[-/]\d{2})\b',   # DD-MM-YY
+        r"\b(\d{1,2}[-/]\d{1,2}[-/]\d{4})\b",  # DD-MM-YYYY or MM-DD-YYYY
+        r"\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b",  # YYYY-MM-DD
+        r"\b(\d{1,2}[-/]\d{1,2}[-/]\d{2})\b",  # DD-MM-YY
     ]
 
     # Date parse formats tried in order for each extracted string
     DATE_FORMATS = [
-        "%d-%m-%Y", "%m-%d-%Y", "%Y-%m-%d",
-        "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d",
-        "%d-%m-%y", "%m-%d-%y",
+        "%d-%m-%Y",
+        "%m-%d-%Y",
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%Y/%m/%d",
+        "%d-%m-%y",
+        "%m-%d-%y",
     ]
 
     # Product code patterns
