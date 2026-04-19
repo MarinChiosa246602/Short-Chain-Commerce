@@ -10,7 +10,7 @@ This module orchestrates the full pipeline:
 """
 
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -43,7 +43,7 @@ class ErrorRecovery:
         if len(variants) < max_retries:
             try:
                 lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-                l, a, b = cv2.split(lab)
+                l, a, b = cv2.split(lab)  # FIX: use cv2.split, not lab[0]
                 clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(16, 16))
                 enhanced_l = clahe.apply(l)
                 enhanced_lab = cv2.merge((enhanced_l, a, b))
@@ -92,7 +92,7 @@ class ErrorRecovery:
         record = {
             "extraction_id": extraction_id,
             "error_type": error_type,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "details": details or {},
         }
         return record
@@ -154,7 +154,6 @@ class EndToEndPipeline:
             try:
                 ocr_result = self.ocr_pipeline.process(enhanced)
             except Exception as ocr_err:
-                # OCR failure is non-fatal; continue with empty result
                 ocr_result = {
                     "all_texts": [],
                     "high_confidence_texts": [],
@@ -205,8 +204,6 @@ class EndToEndPipeline:
         """
         Run pipeline using only the CV stage (no OCR).
 
-        Useful when images contain no readable text labels.
-
         Args:
             image_source: Image to process
 
@@ -220,7 +217,6 @@ class EndToEndPipeline:
             image = self.preprocessor.load_image(image_source)
             cv_result = self.cv_pipeline.process(image_source)
 
-            # Parse with empty OCR result
             parsed = self.extraction_processor.process(
                 cv_result=cv_result,
                 ocr_result={},
@@ -249,8 +245,6 @@ class EndToEndPipeline:
 class BatchProcessor:
     """
     Process multiple images in batch.
-
-    Wraps EndToEndPipeline for bulk operations.
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -331,7 +325,6 @@ class BatchProcessor:
         for result in results:
             extraction = result.get("extraction")
 
-            # extraction can be an ExtractionResponse object or a plain dict
             if extraction is None:
                 continue
 
@@ -346,11 +339,9 @@ class BatchProcessor:
             for product in products:
                 total_products += 1
 
-                # Quantity
                 qty = getattr(product, "quantity", None) if hasattr(product, "quantity") else product.get("quantity", 0)
                 total_quantity += qty or 0
 
-                # Product type counts
                 name = (
                     getattr(product, "product_name", None)
                     if hasattr(product, "product_name")
@@ -359,7 +350,6 @@ class BatchProcessor:
                 if name:
                     product_types[name] = product_types.get(name, 0) + 1
 
-                # Earliest expiry
                 expiry = (
                     getattr(product, "expiry_date", None)
                     if hasattr(product, "expiry_date")

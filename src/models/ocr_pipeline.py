@@ -97,13 +97,22 @@ class OCRPreprocessor:
 class TextExtractor:
     """Extract and parse text from images using OCR."""
 
-    # Date patterns for extraction
+    # Date patterns for extraction — ordered from most specific to least
     DATE_PATTERNS = [
-        (r"\b(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\b", "%d-%m-%Y"),  # DD-MM-YYYY
-        (r"\b(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\b", "%m-%d-%Y"),  # MM-DD-YYYY
-        (r"\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b", "%Y-%m-%d"),  # YYYY-MM-DD
-        (r"\b((?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[a-z]*\s+\d{1,2},?\s+\d{4})\b", "%B %d, %Y"),
-        (r"\b(BEST\s*BY|EXP|EXPIRY|USE\s*BY|BEST\s*BEFORE)?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\b", None),
+        # Prefixed dates: EXP 15-04-2026 / BEST BEFORE 2026-01-01 / USE BY 01/01/2026
+        r'(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
+        r'(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{4}[-/]\d{1,2}[-/]\d{1,2})',
+        # Plain dates
+        r'\b(\d{1,2}[-/]\d{1,2}[-/]\d{4})\b',   # DD-MM-YYYY or MM-DD-YYYY
+        r'\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b',   # YYYY-MM-DD
+        r'\b(\d{1,2}[-/]\d{1,2}[-/]\d{2})\b',   # DD-MM-YY
+    ]
+
+    # Date parse formats tried in order for each extracted string
+    DATE_FORMATS = [
+        "%d-%m-%Y", "%m-%d-%Y", "%Y-%m-%d",
+        "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d",
+        "%d-%m-%y", "%m-%d-%y",
     ]
 
     # Product code patterns
@@ -131,8 +140,7 @@ class TextExtractor:
         if not PADDLEOCR_AVAILABLE:
             raise ImportError("paddleocr package is required. Install with: pip install paddleocr paddlepaddle")
 
-        device = "gpu" if use_gpu else "cpu"
-        self.ocr = PaddleOCR(use_textline_orientation=True, lang=lang, device=device)
+        self.ocr = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu)
         self.preprocessor = OCRPreprocessor()
 
     def extract_text(self, image: Any, enhance: bool = True) -> List[Dict[str, Any]]:
@@ -164,7 +172,7 @@ class TextExtractor:
             image = self.preprocessor.enhance_for_ocr(image)
 
         # Run OCR
-        result = self.ocr.ocr(image, cls=True)
+        result = self.ocr.predict(image)
 
         texts = []
         if result and result[0]:
@@ -209,21 +217,25 @@ class TextExtractor:
         """
         full_text = " ".join([t["text"] for t in texts])
 
-        for pattern, date_format in self.DATE_PATTERNS:
+        for pattern in self.DATE_PATTERNS:
             match = re.search(pattern, full_text, re.IGNORECASE)
             if match:
-                date_str = match.group(0)
-                try:
-                    # Try to parse the date
-                    parsed = datetime.strptime(date_str, date_format) if date_format else None
-                    if parsed and parsed > datetime.now():
-                        return {
-                            "raw": date_str,
-                            "parsed": parsed.strftime("%Y-%m-%d"),
-                            "confidence": "high",
-                        }
-                except ValueError:
-                    continue
+                # The date is always in the first capture group
+                date_str = match.group(1)
+                # Normalise separators to '-'
+                date_str_norm = date_str.replace("/", "-")
+
+                for fmt in self.DATE_FORMATS:
+                    try:
+                        parsed = datetime.strptime(date_str_norm, fmt)
+                        if parsed > datetime.now():
+                            return {
+                                "raw": date_str,
+                                "parsed": parsed.strftime("%Y-%m-%d"),
+                                "confidence": "high",
+                            }
+                    except ValueError:
+                        continue
 
         return None
 
@@ -281,7 +293,10 @@ class OCRPipeline:
             config: Pipeline configuration
         """
         self.config = config or {}
-        self.extractor = TextExtractor(lang=self.config.get("language", "en"), use_gpu=self.config.get("use_gpu", False))
+        self.extractor = TextExtractor(
+            lang=self.config.get("language", "en"),
+            use_gpu=self.config.get("use_gpu", False),
+        )
         self.preprocessor = OCRPreprocessor()
 
     def process(self, image: Any, detect_regions: bool = True) -> Dict[str, Any]:

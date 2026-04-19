@@ -241,9 +241,9 @@ class ConditionAssessorAdvanced:
 
         # Value affects freshness (too dark = wilting, too light = overripe)
         if avg_value < 80:
-            freshness_score -= 15
-        elif avg_value > 220:
             freshness_score -= 10
+        elif avg_value > 230:
+            freshness_score -= 5
 
         return {
             "score": max(freshness_score, 0),
@@ -262,7 +262,6 @@ class ConditionAssessorAdvanced:
         texture_variance = np.var(laplacian)
 
         # Normalize variance (higher = more texture = fresher for most produce)
-        # This is heuristic and would be refined with training data
         texture_score = min(texture_variance / 100, 100)
 
         # Detect smoothness (wilting = smoother surface)
@@ -433,7 +432,7 @@ class MultiProductAssessor:
 
         return {
             "total_products": len(valid),
-            "average_score": sum(scores) / len(scores),
+            "average_score": round(sum(scores) / len(scores), 2),  # FIX: round to 2dp
             "min_score": min(scores),
             "max_score": max(scores),
             "condition_distribution": condition_counts,
