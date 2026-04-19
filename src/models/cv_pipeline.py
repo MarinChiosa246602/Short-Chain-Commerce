@@ -16,6 +16,7 @@ import io
 
 try:
     from ultralytics import YOLO
+
     YOLO_AVAILABLE = True
 except ImportError:
     YOLO_AVAILABLE = False
@@ -37,9 +38,10 @@ class ImagePreprocessor:
         """
         if isinstance(image_source, str):
             # Load from file path
-            if image_source.startswith(('http://', 'https://')):
+            if image_source.startswith(("http://", "https://")):
                 # Download from URL
                 import requests
+
                 response = requests.get(image_source)
                 response.raise_for_status()
                 image = Image.open(io.BytesIO(response.content))
@@ -53,8 +55,8 @@ class ImagePreprocessor:
             raise ValueError(f"Unsupported image source type: {type(image_source)}")
 
         # Convert to BGR for OpenCV compatibility
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
+        if image.mode != "RGB":
+            image = image.convert("RGB")
         return cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
     @staticmethod
@@ -86,8 +88,7 @@ class ImagePreprocessor:
         pad_bottom = pad_h - pad_top
 
         padded = cv2.copyMakeBorder(
-            resized, pad_top, pad_bottom, pad_left, pad_right,
-            cv2.BORDER_CONSTANT, value=(114, 114, 114)
+            resized, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_CONSTANT, value=(114, 114, 114)
         )
 
         # Normalize to [0, 1]
@@ -129,8 +130,8 @@ class ConditionAssessor:
 
     # Color thresholds for freshness assessment
     FRESHNESS_COLORS = {
-        'tomato': {'red_low': 0, 'red_high': 50, 'green_low': 0, 'green_high': 100},
-        'lettuce': {'green_low': 100, 'green_high': 255},
+        "tomato": {"red_low": 0, "red_high": 50, "green_low": 0, "green_high": 100},
+        "lettuce": {"green_low": 100, "green_high": 255},
     }
 
     def assess_condition(self, image: np.ndarray, product_type: str) -> Dict[str, Any]:
@@ -222,20 +223,16 @@ class ObjectDetector:
             confidence_threshold: Minimum confidence for detections
         """
         if not YOLO_AVAILABLE:
-            raise ImportError(
-                "ultralytics package is required. Install with: pip install ultralytics"
-            )
+            raise ImportError("ultralytics package is required. Install with: pip install ultralytics")
 
-        self.model = YOLO(model_path or 'yolov8m.pt')
+        self.model = YOLO(model_path or "yolov8m.pt")
         self.confidence_threshold = confidence_threshold
         self.preprocessor = ImagePreprocessor()
         self.condition_assessor = ConditionAssessor()
 
         # Default classes for logistics detection
         # In production, train on custom dataset
-        self.class_names = [
-            'crate', 'box', 'product', 'label', 'barcode'
-        ]
+        self.class_names = ["crate", "box", "product", "label", "barcode"]
 
     def detect(self, image_source: Any) -> List[Dict[str, Any]]:
         """
@@ -281,7 +278,7 @@ class ObjectDetector:
 
                     # Add condition assessment for products
                     if detection["class_name"] == "product":
-                        roi = image[int(y1):int(y2), int(x1):int(x2)]
+                        roi = image[int(y1) : int(y2), int(x1) : int(x2)]
                         condition = self.condition_assessor.assess_condition(roi, "unknown")
                         detection["condition"] = condition
 
@@ -324,9 +321,7 @@ class CVPipeline:
         self.preprocessor = ImagePreprocessor()
 
         try:
-            self.detector = ObjectDetector(
-                confidence_threshold=self.config.get('detection_confidence', 0.5)
-            )
+            self.detector = ObjectDetector(confidence_threshold=self.config.get("detection_confidence", 0.5))
         except ImportError as e:
             self.detector = None
             print(f"Warning: Object detection not available: {e}")
@@ -343,7 +338,7 @@ class CVPipeline:
         Returns:
             Dictionary with detection results and extracted features
         """
-        start_time = __import__('time').time()
+        start_time = __import__("time").time()
 
         # Load image
         image = self.preprocessor.load_image(image_source)
@@ -359,7 +354,7 @@ class CVPipeline:
         # Enhance for OCR
         enhanced = self.preprocessor.enhance_image(image)
 
-        processing_time = (__import__('time').time() - start_time) * 1000
+        processing_time = (__import__("time").time() - start_time) * 1000
 
         return {
             "detections": detections,

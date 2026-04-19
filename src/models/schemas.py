@@ -11,6 +11,7 @@ from enum import Enum
 
 class UnitType(str, Enum):
     """Supported unit types for product quantities."""
+
     CRATE = "crate"
     BOX = "box"
     KG = "kg"
@@ -22,6 +23,7 @@ class UnitType(str, Enum):
 
 class ConditionType(str, Enum):
     """Product condition assessment types."""
+
     EXCELLENT = "excellent"
     GOOD = "good"
     FAIR = "fair"
@@ -40,16 +42,16 @@ class Product(BaseModel):
     storage_location: Optional[str] = Field(None, description="Physical storage location", max_length=100)
     condition: Optional[ConditionType] = Field(None, description="Quality assessment")
 
-    @validator('product_id')
+    @validator("product_id")
     def validate_product_id(cls, v):
         if not v or not v.strip():
-            raise ValueError('product_id cannot be empty')
+            raise ValueError("product_id cannot be empty")
         return v.strip()
 
-    @validator('expiry_date')
+    @validator("expiry_date")
     def validate_expiry_date(cls, v):
         if v and v <= datetime.now():
-            raise ValueError('expiry_date must be in the future')
+            raise ValueError("expiry_date must be in the future")
         return v
 
 
@@ -61,16 +63,16 @@ class Metadata(BaseModel):
     temperature: Optional[float] = Field(None, description="Storage temperature in Celsius", ge=-40, le=50)
     humidity: Optional[float] = Field(None, description="Humidity percentage", ge=0, le=100)
 
-    @validator('source_farm')
+    @validator("source_farm")
     def validate_source_farm(cls, v):
         if not v or not v.strip():
-            raise ValueError('source_farm cannot be empty')
+            raise ValueError("source_farm cannot be empty")
         return v.strip()
 
-    @validator('destination')
+    @validator("destination")
     def validate_destination(cls, v):
         if not v or not v.strip():
-            raise ValueError('destination cannot be empty')
+            raise ValueError("destination cannot be empty")
         return v.strip()
 
 
@@ -129,9 +131,9 @@ class ImageUploadRequest(BaseModel):
     source_farm: Optional[str] = Field(None, description="Override source farm identifier")
     destination: Optional[str] = Field(None, description="Override destination identifier")
 
-    @validator('image_url', 'image_data', pre=True)
+    @validator("image_url", "image_data", pre=True)
     def check_at_least_one(cls, v, values):
-        if not v and not values.get('image_url'):
-            if not values.get('image_data'):
-                raise ValueError('Either image_url or image_data must be provided')
+        if not v and not values.get("image_url"):
+            if not values.get("image_data"):
+                raise ValueError("Either image_url or image_data must be provided")
         return v

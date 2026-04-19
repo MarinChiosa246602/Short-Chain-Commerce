@@ -156,11 +156,13 @@ class BatchProcessor:
                 else:
                     # Partial success
                     if result.get("missing_fields"):
-                        anomalies.append({
-                            "image_path": path,
-                            "type": "missing_fields",
-                            "fields": result["missing_fields"],
-                        })
+                        anomalies.append(
+                            {
+                                "image_path": path,
+                                "type": "missing_fields",
+                                "fields": result["missing_fields"],
+                            }
+                        )
 
                 results.append(result)
 
@@ -174,11 +176,13 @@ class BatchProcessor:
                 }
                 results.append(error_result)
 
-                anomalies.append({
-                    "image_path": path,
-                    "type": "processing_error",
-                    "error": str(e),
-                })
+                anomalies.append(
+                    {
+                        "image_path": path,
+                        "type": "processing_error",
+                        "error": str(e),
+                    }
+                )
 
         processing_time = (time.time() - start_time) * 1000
 

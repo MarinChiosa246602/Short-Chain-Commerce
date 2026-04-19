@@ -53,6 +53,7 @@ class DatabaseManager:
         """Get database connection context manager."""
         if self.db_type == "postgresql":
             import psycopg2
+
             conn = psycopg2.connect(self.postgres_url)
         else:
             conn = sqlite3.connect(self.db_path)
@@ -165,51 +166,60 @@ class DatabaseManager:
             cursor = conn.cursor()
 
             # Insert extraction record
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO extractions
                 (id, image_id, timestamp, source_farm, destination,
                  status, is_valid, processing_time_ms)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                extraction_id,
-                image_id,
-                timestamp.isoformat(),
-                source_farm,
-                destination,
-                status,
-                is_valid,
-                processing_time_ms,
-            ))
+            """,
+                (
+                    extraction_id,
+                    image_id,
+                    timestamp.isoformat(),
+                    source_farm,
+                    destination,
+                    status,
+                    is_valid,
+                    processing_time_ms,
+                ),
+            )
 
             # Insert products
             for product in products:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO products
                     (extraction_id, product_id, product_name, quantity,
                      unit, expiry_date, storage_location, condition)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    extraction_id,
-                    product.get('product_id'),
-                    product.get('product_name'),
-                    product.get('quantity'),
-                    product.get('unit'),
-                    product.get('expiry_date').isoformat() if product.get('expiry_date') else None,
-                    product.get('storage_location'),
-                    product.get('condition'),
-                ))
+                """,
+                    (
+                        extraction_id,
+                        product.get("product_id"),
+                        product.get("product_name"),
+                        product.get("quantity"),
+                        product.get("unit"),
+                        product.get("expiry_date").isoformat() if product.get("expiry_date") else None,
+                        product.get("storage_location"),
+                        product.get("condition"),
+                    ),
+                )
 
             # Store metadata as JSON
             if missing_fields or low_confidence_fields:
                 metadata = {
-                    'missing_fields': missing_fields or [],
-                    'low_confidence_fields': low_confidence_fields or [],
+                    "missing_fields": missing_fields or [],
+                    "low_confidence_fields": low_confidence_fields or [],
                 }
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT OR REPLACE INTO extraction_metadata
                     (extraction_id, metadata)
                     VALUES (?, ?)
-                """, (extraction_id, json.dumps(metadata)))
+                """,
+                    (extraction_id, json.dumps(metadata)),
+                )
 
     def save_anomaly(
         self,
@@ -222,16 +232,19 @@ class DatabaseManager:
         """Save an anomaly record."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO anomalies (extraction_id, batch_id, anomaly_type, severity, details)
                 VALUES (?, ?, ?, ?, ?)
-            """, (
-                extraction_id,
-                batch_id,
-                anomaly_type,
-                severity,
-                json.dumps(details),
-            ))
+            """,
+                (
+                    extraction_id,
+                    batch_id,
+                    anomaly_type,
+                    severity,
+                    json.dumps(details),
+                ),
+            )
 
     def get_extraction(self, extraction_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -256,11 +269,8 @@ class DatabaseManager:
             extraction = dict(row)
 
             # Get products
-            cursor.execute(
-                "SELECT * FROM products WHERE extraction_id = ?",
-                (extraction_id,)
-            )
-            extraction['products'] = [dict(p) for p in cursor.fetchall()]
+            cursor.execute("SELECT * FROM products WHERE extraction_id = ?", (extraction_id,))
+            extraction["products"] = [dict(p) for p in cursor.fetchall()]
 
             return extraction
 
@@ -364,13 +374,13 @@ class DatabaseManager:
             row = cursor.fetchone()
 
             return {
-                'total': row['total'] or 0,
-                'successful': row['successful'] or 0,
-                'partial': row['partial'] or 0,
-                'failed': row['failed'] or 0,
-                'avg_processing_time_ms': row['avg_processing_time'] or 0,
-                'first_extraction': row['first_extraction'],
-                'last_extraction': row['last_extraction'],
+                "total": row["total"] or 0,
+                "successful": row["successful"] or 0,
+                "partial": row["partial"] or 0,
+                "failed": row["failed"] or 0,
+                "avg_processing_time_ms": row["avg_processing_time"] or 0,
+                "first_extraction": row["first_extraction"],
+                "last_extraction": row["last_extraction"],
             }
 
     def get_product_inventory(self) -> List[Dict[str, Any]]:
@@ -409,15 +419,18 @@ class DatabaseManager:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM anomalies
                 ORDER BY detected_at DESC
                 LIMIT ?
-            """, (limit,))
+            """,
+                (limit,),
+            )
             anomalies = []
             for row in cursor.fetchall():
                 anomaly = dict(row)
-                anomaly['details'] = json.loads(anomaly['details'] or '{}')
+                anomaly["details"] = json.loads(anomaly["details"] or "{}")
                 anomalies.append(anomaly)
             return anomalies
 
@@ -447,13 +460,13 @@ if __name__ == "__main__":
         processing_time_ms=250.5,
         products=[
             {
-                'product_id': 'TOM-001',
-                'product_name': 'Tomato',
-                'quantity': 24,
-                'unit': 'crate',
-                'expiry_date': datetime(2026, 12, 25),
-                'storage_location': 'Fridge-A',
-                'condition': 'excellent',
+                "product_id": "TOM-001",
+                "product_name": "Tomato",
+                "quantity": 24,
+                "unit": "crate",
+                "expiry_date": datetime(2026, 12, 25),
+                "storage_location": "Fridge-A",
+                "condition": "excellent",
             }
         ],
         missing_fields=[],

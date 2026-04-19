@@ -37,10 +37,7 @@ from pipeline import EndToEndPipeline, BatchProcessor
 from models.schemas import ValidationErrorDetail
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
@@ -58,10 +55,12 @@ def get_pipeline():
     """Get or create pipeline instance."""
     global _extraction_pipeline
     if _extraction_pipeline is None:
-        _extraction_pipeline = EndToEndPipeline({
-            'confidence_threshold': 0.7,
-            'detection_confidence': 0.5,
-        })
+        _extraction_pipeline = EndToEndPipeline(
+            {
+                "confidence_threshold": 0.7,
+                "detection_confidence": 0.5,
+            }
+        )
     return _extraction_pipeline
 
 
@@ -69,47 +68,44 @@ def get_batch_processor():
     """Get or create batch processor instance."""
     global _batch_processor
     if _batch_processor is None:
-        _batch_processor = BatchProcessor({
-            'confidence_threshold': 0.7,
-        })
+        _batch_processor = BatchProcessor(
+            {
+                "confidence_threshold": 0.7,
+            }
+        )
     return _batch_processor
 
 
 # Monitoring metrics
 metrics = {
-    'total_requests': 0,
-    'successful_requests': 0,
-    'failed_requests': 0,
-    'total_processing_time_ms': 0,
-    'requests_by_status': {},
+    "total_requests": 0,
+    "successful_requests": 0,
+    "failed_requests": 0,
+    "total_processing_time_ms": 0,
+    "requests_by_status": {},
 }
 
 
 def update_metrics(status: str, processing_time_ms: float):
     """Update API metrics."""
-    metrics['total_requests'] += 1
-    metrics['total_processing_time_ms'] += processing_time_ms
+    metrics["total_requests"] += 1
+    metrics["total_processing_time_ms"] += processing_time_ms
 
-    if status == 'success':
-        metrics['successful_requests'] += 1
-    elif status == 'partial':
-        metrics['successful_requests'] += 1  # Partial is still success
+    if status == "success":
+        metrics["successful_requests"] += 1
+    elif status == "partial":
+        metrics["successful_requests"] += 1  # Partial is still success
     else:
-        metrics['failed_requests'] += 1
+        metrics["failed_requests"] += 1
 
     status_key = status
-    metrics['requests_by_status'][status_key] = metrics['requests_by_status'].get(status_key, 0) + 1
+    metrics["requests_by_status"][status_key] = metrics["requests_by_status"].get(status_key, 0) + 1
 
 
 @app.get("/")
 async def root():
     """API root endpoint - health check."""
-    return {
-        "service": "Short Chain Commerce API",
-        "status": "running",
-        "version": "1.0.0",
-        "documentation": "/docs"
-    }
+    return {"service": "Short Chain Commerce API", "status": "running", "version": "1.0.0", "documentation": "/docs"}
 
 
 @app.get("/health")
@@ -118,27 +114,21 @@ async def health_check():
     return {
         "status": "healthy",
         "pipeline_initialized": _extraction_pipeline is not None,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
 
 @app.get("/api/v1/metrics")
 async def get_metrics():
     """Get API performance metrics."""
-    avg_time = (
-        metrics['total_processing_time_ms'] / metrics['total_requests']
-        if metrics['total_requests'] > 0 else 0
-    )
+    avg_time = metrics["total_processing_time_ms"] / metrics["total_requests"] if metrics["total_requests"] > 0 else 0
     return {
-        "total_requests": metrics['total_requests'],
-        "successful_requests": metrics['successful_requests'],
-        "failed_requests": metrics['failed_requests'],
-        "success_rate": (
-            metrics['successful_requests'] / metrics['total_requests']
-            if metrics['total_requests'] > 0 else 0
-        ),
+        "total_requests": metrics["total_requests"],
+        "successful_requests": metrics["successful_requests"],
+        "failed_requests": metrics["failed_requests"],
+        "success_rate": (metrics["successful_requests"] / metrics["total_requests"] if metrics["total_requests"] > 0 else 0),
         "avg_processing_time_ms": avg_time,
-        "requests_by_status": metrics['requests_by_status'],
+        "requests_by_status": metrics["requests_by_status"],
     }
 
 
@@ -162,10 +152,7 @@ async def extract_data(
     # Validate file type
     allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
     if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type. Allowed: {', '.join(allowed_types)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Unsupported file type. Allowed: {', '.join(allowed_types)}")
 
     try:
         # Read image data
@@ -185,92 +172,93 @@ async def extract_data(
         )
 
         processing_time = (time.time() - start_time) * 1000
-        update_metrics(result.get('status', 'error'), processing_time)
+        update_metrics(result.get("status", "error"), processing_time)
 
-        if result.get('status') == 'error':
+        if result.get("status") == "error":
             return JSONResponse(
                 status_code=500,
                 content={
                     "status": "error",
-                    "error": result.get('error', 'Processing failed'),
+                    "error": result.get("error", "Processing failed"),
                     "processing_time_ms": processing_time,
-                }
+                },
             )
 
         # Build response
-        extraction = result.get('extraction')
+        extraction = result.get("extraction")
         if extraction:
-            if result.get('is_valid'):
-                return JSONResponse(content={
-                    "status": "success",
-                    "data": {
-                        "image_id": str(extraction.image_id),
-                        "timestamp": extraction.timestamp.isoformat(),
-                        "products": [
-                            {
-                                "product_id": p.product_id,
-                                "product_name": p.product_name,
-                                "quantity": p.quantity,
-                                "unit": p.unit.value,
-                                "expiry_date": p.expiry_date.isoformat() if p.expiry_date else None,
-                                "storage_location": p.storage_location,
-                                "condition": p.condition.value if p.condition else None,
-                            }
-                            for p in extraction.products
-                        ],
-                        "metadata": {
-                            "source_farm": extraction.metadata.source_farm,
-                            "destination": extraction.metadata.destination,
-                            "temperature": extraction.metadata.temperature,
-                            "humidity": extraction.metadata.humidity,
+            if result.get("is_valid"):
+                return JSONResponse(
+                    content={
+                        "status": "success",
+                        "data": {
+                            "image_id": str(extraction.image_id),
+                            "timestamp": extraction.timestamp.isoformat(),
+                            "products": [
+                                {
+                                    "product_id": p.product_id,
+                                    "product_name": p.product_name,
+                                    "quantity": p.quantity,
+                                    "unit": p.unit.value,
+                                    "expiry_date": p.expiry_date.isoformat() if p.expiry_date else None,
+                                    "storage_location": p.storage_location,
+                                    "condition": p.condition.value if p.condition else None,
+                                }
+                                for p in extraction.products
+                            ],
+                            "metadata": {
+                                "source_farm": extraction.metadata.source_farm,
+                                "destination": extraction.metadata.destination,
+                                "temperature": extraction.metadata.temperature,
+                                "humidity": extraction.metadata.humidity,
+                            },
+                            "missing_fields": extraction.missing_fields,
+                            "low_confidence_fields": extraction.low_confidence_fields,
                         },
-                        "missing_fields": extraction.missing_fields,
-                        "low_confidence_fields": extraction.low_confidence_fields,
-                    },
-                    "processing_time_ms": processing_time,
-                })
+                        "processing_time_ms": processing_time,
+                    }
+                )
             else:
-                return JSONResponse(content={
-                    "status": "partial",
-                    "data": {
-                        "image_id": str(extraction.image_id),
-                        "timestamp": extraction.timestamp.isoformat(),
-                        "products": [
-                            {
-                                "product_id": p.product_id,
-                                "product_name": p.product_name,
-                                "quantity": p.quantity,
-                                "unit": p.unit.value,
-                                "expiry_date": p.expiry_date.isoformat() if p.expiry_date else None,
-                                "storage_location": p.storage_location,
-                                "condition": p.condition.value if p.condition else None,
-                            }
-                            for p in extraction.products
-                        ],
-                        "metadata": {
-                            "source_farm": extraction.metadata.source_farm,
-                            "destination": extraction.metadata.destination,
-                            "temperature": extraction.metadata.temperature,
-                            "humidity": extraction.metadata.humidity,
+                return JSONResponse(
+                    content={
+                        "status": "partial",
+                        "data": {
+                            "image_id": str(extraction.image_id),
+                            "timestamp": extraction.timestamp.isoformat(),
+                            "products": [
+                                {
+                                    "product_id": p.product_id,
+                                    "product_name": p.product_name,
+                                    "quantity": p.quantity,
+                                    "unit": p.unit.value,
+                                    "expiry_date": p.expiry_date.isoformat() if p.expiry_date else None,
+                                    "storage_location": p.storage_location,
+                                    "condition": p.condition.value if p.condition else None,
+                                }
+                                for p in extraction.products
+                            ],
+                            "metadata": {
+                                "source_farm": extraction.metadata.source_farm,
+                                "destination": extraction.metadata.destination,
+                                "temperature": extraction.metadata.temperature,
+                                "humidity": extraction.metadata.humidity,
+                            },
+                            "missing_fields": extraction.missing_fields,
+                            "low_confidence_fields": extraction.low_confidence_fields,
                         },
-                        "missing_fields": extraction.missing_fields,
-                        "low_confidence_fields": extraction.low_confidence_fields,
-                    },
-                    "errors": result.get('errors', []),
-                    "processing_time_ms": processing_time,
-                })
+                        "errors": result.get("errors", []),
+                        "processing_time_ms": processing_time,
+                    }
+                )
 
-        return JSONResponse(
-            status_code=500,
-            content={"status": "error", "error": "Unexpected response format"}
-        )
+        return JSONResponse(status_code=500, content={"status": "error", "error": "Unexpected response format"})
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Extraction failed: {e}")
         processing_time = (time.time() - start_time) * 1000
-        update_metrics('error', processing_time)
+        update_metrics("error", processing_time)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -292,10 +280,7 @@ async def extract_batch(
     start_time = time.time()
 
     if len(files) > 50:
-        raise HTTPException(
-            status_code=400,
-            detail="Maximum 50 files per batch request"
-        )
+        raise HTTPException(status_code=400, detail="Maximum 50 files per batch request")
 
     try:
         # Process images and return batch results
@@ -319,20 +304,22 @@ async def extract_batch(
 
         processing_time = (time.time() - start_time) * 1000
 
-        return JSONResponse(content={
-            "status": "success",
-            "batch_summary": {
-                "total_images": batch_result.get('total_images', 0),
-                "successful": batch_result.get('successful', 0),
-                "failed": batch_result.get('failed', 0),
-                "success_rate": batch_result.get('success_rate', 0),
-                "processing_time_ms": batch_result.get('processing_time_ms', 0),
-            },
-            "aggregation": batch_result.get('aggregation', {}),
-            "results": batch_result.get('results', []),
-            "anomalies": batch_result.get('anomalies', []),
-            "processing_time_ms": processing_time,
-        })
+        return JSONResponse(
+            content={
+                "status": "success",
+                "batch_summary": {
+                    "total_images": batch_result.get("total_images", 0),
+                    "successful": batch_result.get("successful", 0),
+                    "failed": batch_result.get("failed", 0),
+                    "success_rate": batch_result.get("success_rate", 0),
+                    "processing_time_ms": batch_result.get("processing_time_ms", 0),
+                },
+                "aggregation": batch_result.get("aggregation", {}),
+                "results": batch_result.get("results", []),
+                "anomalies": batch_result.get("anomalies", []),
+                "processing_time_ms": processing_time,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Batch extraction failed: {e}")
@@ -363,7 +350,7 @@ async def get_schemas():
         "extraction_request": {
             "source_farm": "string (optional)",
             "destination": "string (optional)",
-            "file": "image file (multipart/form-data)"
+            "file": "image file (multipart/form-data)",
         },
         "extraction_response": {
             "status": "success | partial | error",
@@ -378,17 +365,17 @@ async def get_schemas():
                         "unit": "crate | box | kg | lb | piece | carton | pallet",
                         "expiry_date": "YYYY-MM-DD (optional)",
                         "storage_location": "string (optional)",
-                        "condition": "excellent | good | fair | poor | damaged (optional)"
+                        "condition": "excellent | good | fair | poor | damaged (optional)",
                     }
                 ],
                 "metadata": {
                     "source_farm": "string",
                     "destination": "string",
                     "temperature": "float (optional)",
-                    "humidity": "float (optional)"
-                }
+                    "humidity": "float (optional)",
+                },
             },
-            "processing_time_ms": "float"
+            "processing_time_ms": "float",
         },
         "batch_response": {
             "status": "success",
@@ -407,10 +394,11 @@ async def get_schemas():
             },
             "results": "array of individual extraction results",
             "anomalies": "array of detected anomalies",
-        }
+        },
     }
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -25,17 +25,17 @@ class LogFormatter(logging.Formatter):
 
     def format(self, record):
         log_data = {
-            'timestamp': datetime.utcnow().isoformat(),
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
+            "timestamp": datetime.utcnow().isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
         }
 
-        if hasattr(record, 'extra_data'):
+        if hasattr(record, "extra_data"):
             log_data.update(record.extra_data)
 
         if record.exc_info:
-            log_data['exception'] = self.formatException(record.exc_info)
+            log_data["exception"] = self.formatException(record.exc_info)
 
         return json.dumps(log_data)
 
@@ -52,7 +52,7 @@ class ExtractionLogger:
 
     def __init__(
         self,
-        name: str = 'extraction',
+        name: str = "extraction",
         log_file: Optional[str] = None,
         console_output: bool = True,
         structured: bool = True,
@@ -73,9 +73,7 @@ class ExtractionLogger:
         if structured:
             formatter = LogFormatter()
         else:
-            formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
+            formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
         if console_output:
             console_handler = logging.StreamHandler()
@@ -89,12 +87,12 @@ class ExtractionLogger:
 
         # Metrics tracking
         self._metrics = {
-            'total_extractions': 0,
-            'successful_extractions': 0,
-            'failed_extractions': 0,
-            'partial_extractions': 0,
-            'total_processing_time_ms': 0,
-            'anomalies_detected': 0,
+            "total_extractions": 0,
+            "successful_extractions": 0,
+            "failed_extractions": 0,
+            "partial_extractions": 0,
+            "total_processing_time_ms": 0,
+            "anomalies_detected": 0,
         }
         self._metrics_lock = Lock()
 
@@ -103,12 +101,12 @@ class ExtractionLogger:
         self.logger.info(
             f"Extraction started: {extraction_id}",
             extra={
-                'extra_data': {
-                    'event': 'extraction_start',
-                    'extraction_id': extraction_id,
+                "extra_data": {
+                    "event": "extraction_start",
+                    "extraction_id": extraction_id,
                     **image_info,
                 }
-            }
+            },
         )
 
     def log_extraction_complete(
@@ -121,28 +119,28 @@ class ExtractionLogger:
     ):
         """Log extraction completion."""
         with self._metrics_lock:
-            self._metrics['total_extractions'] += 1
-            self._metrics['total_processing_time_ms'] += processing_time_ms
+            self._metrics["total_extractions"] += 1
+            self._metrics["total_processing_time_ms"] += processing_time_ms
 
-            if status == 'success':
-                self._metrics['successful_extractions'] += 1
-            elif status == 'partial':
-                self._metrics['partial_extractions'] += 1
+            if status == "success":
+                self._metrics["successful_extractions"] += 1
+            elif status == "partial":
+                self._metrics["partial_extractions"] += 1
             else:
-                self._metrics['failed_extractions'] += 1
+                self._metrics["failed_extractions"] += 1
 
         self.logger.info(
             f"Extraction completed: {extraction_id} ({status})",
             extra={
-                'extra_data': {
-                    'event': 'extraction_complete',
-                    'extraction_id': extraction_id,
-                    'status': status,
-                    'processing_time_ms': processing_time_ms,
-                    'products_count': products_count,
-                    'missing_fields': missing_fields,
+                "extra_data": {
+                    "event": "extraction_complete",
+                    "extraction_id": extraction_id,
+                    "status": status,
+                    "processing_time_ms": processing_time_ms,
+                    "products_count": products_count,
+                    "missing_fields": missing_fields,
                 }
-            }
+            },
         )
 
     def log_anomaly(
@@ -150,26 +148,26 @@ class ExtractionLogger:
         extraction_id: str,
         anomaly_type: str,
         details: Dict[str, Any],
-        severity: str = 'warning',
+        severity: str = "warning",
     ):
         """Log an anomaly."""
         with self._metrics_lock:
-            self._metrics['anomalies_detected'] += 1
+            self._metrics["anomalies_detected"] += 1
 
-        log_level = logging.WARNING if severity == 'warning' else logging.ERROR
+        log_level = logging.WARNING if severity == "warning" else logging.ERROR
 
         self.logger.log(
             log_level,
             f"Anomaly detected: {anomaly_type}",
             extra={
-                'extra_data': {
-                    'event': 'anomaly',
-                    'extraction_id': extraction_id,
-                    'anomaly_type': anomaly_type,
-                    'severity': severity,
+                "extra_data": {
+                    "event": "anomaly",
+                    "extraction_id": extraction_id,
+                    "anomaly_type": anomaly_type,
+                    "severity": severity,
                     **details,
                 }
-            }
+            },
         )
 
     def log_batch_start(self, batch_id: str, image_count: int):
@@ -177,12 +175,12 @@ class ExtractionLogger:
         self.logger.info(
             f"Batch processing started: {batch_id}",
             extra={
-                'extra_data': {
-                    'event': 'batch_start',
-                    'batch_id': batch_id,
-                    'image_count': image_count,
+                "extra_data": {
+                    "event": "batch_start",
+                    "batch_id": batch_id,
+                    "image_count": image_count,
                 }
-            }
+            },
         )
 
     def log_batch_complete(
@@ -197,16 +195,16 @@ class ExtractionLogger:
         self.logger.info(
             f"Batch processing completed: {batch_id}",
             extra={
-                'extra_data': {
-                    'event': 'batch_complete',
-                    'batch_id': batch_id,
-                    'total': total,
-                    'successful': successful,
-                    'failed': failed,
-                    'success_rate': successful / total if total > 0 else 0,
-                    'processing_time_ms': processing_time_ms,
+                "extra_data": {
+                    "event": "batch_complete",
+                    "batch_id": batch_id,
+                    "total": total,
+                    "successful": successful,
+                    "failed": failed,
+                    "success_rate": successful / total if total > 0 else 0,
+                    "processing_time_ms": processing_time_ms,
                 }
-            }
+            },
         )
 
     def get_metrics(self) -> Dict[str, Any]:
@@ -214,14 +212,12 @@ class ExtractionLogger:
         with self._metrics_lock:
             metrics = self._metrics.copy()
 
-        metrics['avg_processing_time_ms'] = (
-            metrics['total_processing_time_ms'] / metrics['total_extractions']
-            if metrics['total_extractions'] > 0 else 0
+        metrics["avg_processing_time_ms"] = (
+            metrics["total_processing_time_ms"] / metrics["total_extractions"] if metrics["total_extractions"] > 0 else 0
         )
 
-        metrics['success_rate'] = (
-            metrics['successful_extractions'] / metrics['total_extractions']
-            if metrics['total_extractions'] > 0 else 0
+        metrics["success_rate"] = (
+            metrics["successful_extractions"] / metrics["total_extractions"] if metrics["total_extractions"] > 0 else 0
         )
 
         return metrics
@@ -230,12 +226,12 @@ class ExtractionLogger:
         """Reset metrics counters."""
         with self._metrics_lock:
             self._metrics = {
-                'total_extractions': 0,
-                'successful_extractions': 0,
-                'failed_extractions': 0,
-                'partial_extractions': 0,
-                'total_processing_time_ms': 0,
-                'anomalies_detected': 0,
+                "total_extractions": 0,
+                "successful_extractions": 0,
+                "failed_extractions": 0,
+                "partial_extractions": 0,
+                "total_processing_time_ms": 0,
+                "anomalies_detected": 0,
             }
 
 
@@ -244,10 +240,10 @@ class PerformanceTracker:
 
     def __init__(self):
         self._timings = {
-            'cv_pipeline': [],
-            'ocr_pipeline': [],
-            'parsing': [],
-            'total': [],
+            "cv_pipeline": [],
+            "ocr_pipeline": [],
+            "parsing": [],
+            "total": [],
         }
         self._lock = Lock()
 
@@ -277,16 +273,16 @@ class PerformanceTracker:
             timings = self._timings.get(component, [])
 
         if not timings:
-            return {'count': 0}
+            return {"count": 0}
 
         return {
-            'count': len(timings),
-            'min_ms': min(timings),
-            'max_ms': max(timings),
-            'avg_ms': sum(timings) / len(timings),
-            'p50_ms': np.percentile(timings, 50),
-            'p95_ms': np.percentile(timings, 95),
-            'p99_ms': np.percentile(timings, 99),
+            "count": len(timings),
+            "min_ms": min(timings),
+            "max_ms": max(timings),
+            "avg_ms": sum(timings) / len(timings),
+            "p50_ms": np.percentile(timings, 50),
+            "p95_ms": np.percentile(timings, 95),
+            "p99_ms": np.percentile(timings, 99),
         }
 
     def get_all_stats(self) -> Dict[str, Dict[str, float]]:
@@ -344,52 +340,62 @@ class AnomalyDetector:
             self._recent_results.pop(0)
 
         # Check product count
-        products = result.get('extraction', {}).get('products', [])
+        products = result.get("extraction", {}).get("products", [])
         if len(products) < self.min_expected_products:
-            anomalies.append({
-                'type': 'LOW_PRODUCT_COUNT',
-                'severity': 'warning',
-                'message': f"Expected at least {self.min_expected_products} products, got {len(products)}",
-                'details': {'products_found': len(products)},
-            })
+            anomalies.append(
+                {
+                    "type": "LOW_PRODUCT_COUNT",
+                    "severity": "warning",
+                    "message": f"Expected at least {self.min_expected_products} products, got {len(products)}",
+                    "details": {"products_found": len(products)},
+                }
+            )
 
         if len(products) > self.max_expected_products:
-            anomalies.append({
-                'type': 'HIGH_PRODUCT_COUNT',
-                'severity': 'warning',
-                'message': f"Expected at most {self.max_expected_products} products, got {len(products)}",
-                'details': {'products_found': len(products)},
-            })
+            anomalies.append(
+                {
+                    "type": "HIGH_PRODUCT_COUNT",
+                    "severity": "warning",
+                    "message": f"Expected at most {self.max_expected_products} products, got {len(products)}",
+                    "details": {"products_found": len(products)},
+                }
+            )
 
         # Check processing time
-        processing_time = result.get('processing_time_ms', 0)
+        processing_time = result.get("processing_time_ms", 0)
         if processing_time > self.max_processing_time_ms:
-            anomalies.append({
-                'type': 'SLOW_PROCESSING',
-                'severity': 'warning',
-                'message': f"Processing time {processing_time:.0f}ms exceeds threshold {self.max_processing_time_ms}ms",
-                'details': {'processing_time_ms': processing_time},
-            })
+            anomalies.append(
+                {
+                    "type": "SLOW_PROCESSING",
+                    "severity": "warning",
+                    "message": f"Processing time {processing_time:.0f}ms exceeds threshold {self.max_processing_time_ms}ms",
+                    "details": {"processing_time_ms": processing_time},
+                }
+            )
 
         # Check for missing fields
-        missing_fields = result.get('extraction', {}).get('missing_fields', [])
+        missing_fields = result.get("extraction", {}).get("missing_fields", [])
         if missing_fields:
-            anomalies.append({
-                'type': 'MISSING_FIELDS',
-                'severity': 'info',
-                'message': f"Missing fields: {', '.join(missing_fields)}",
-                'details': {'missing_fields': missing_fields},
-            })
+            anomalies.append(
+                {
+                    "type": "MISSING_FIELDS",
+                    "severity": "info",
+                    "message": f"Missing fields: {', '.join(missing_fields)}",
+                    "details": {"missing_fields": missing_fields},
+                }
+            )
 
         # Check for low confidence fields
-        low_conf_fields = result.get('extraction', {}).get('low_confidence_fields', [])
+        low_conf_fields = result.get("extraction", {}).get("low_confidence_fields", [])
         if low_conf_fields:
-            anomalies.append({
-                'type': 'LOW_CONFIDENCE_FIELDS',
-                'severity': 'info',
-                'message': f"Low confidence fields: {', '.join(low_conf_fields)}",
-                'details': {'low_confidence_fields': low_conf_fields},
-            })
+            anomalies.append(
+                {
+                    "type": "LOW_CONFIDENCE_FIELDS",
+                    "severity": "info",
+                    "message": f"Low confidence fields: {', '.join(low_conf_fields)}",
+                    "details": {"low_confidence_fields": low_conf_fields},
+                }
+            )
 
         return anomalies
 
@@ -398,10 +404,7 @@ class AnomalyDetector:
         if not self._recent_results:
             return 0.0
 
-        anomalous = sum(
-            1 for r in self._recent_results
-            if not r.get('is_valid', True) or r.get('missing_fields')
-        )
+        anomalous = sum(1 for r in self._recent_results if not r.get("is_valid", True) or r.get("missing_fields"))
 
         return anomalous / len(self._recent_results)
 
@@ -436,7 +439,7 @@ def get_anomaly_detector() -> AnomalyDetector:
     return _anomaly_detector
 
 
-def setup_logging(log_file: Optional[str] = None, level: str = 'INFO'):
+def setup_logging(log_file: Optional[str] = None, level: str = "INFO"):
     """
     Configure application logging.
 
@@ -452,34 +455,34 @@ def setup_logging(log_file: Optional[str] = None, level: str = 'INFO'):
 
     logging.basicConfig(
         level=numeric_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=handlers,
     )
 
 
 if __name__ == "__main__":
     # Example usage
-    setup_logging(level='DEBUG')
+    setup_logging(level="DEBUG")
 
     logger = get_extraction_logger()
     tracker = get_performance_tracker()
 
     # Simulate extraction
     extraction_id = "test-001"
-    logger.log_extraction_start(extraction_id, {'image_size': '640x480'})
+    logger.log_extraction_start(extraction_id, {"image_size": "640x480"})
 
-    with tracker.track('cv_pipeline'):
+    with tracker.track("cv_pipeline"):
         time.sleep(0.1)
 
-    with tracker.track('ocr_pipeline'):
+    with tracker.track("ocr_pipeline"):
         time.sleep(0.2)
 
-    with tracker.track('parsing'):
+    with tracker.track("parsing"):
         time.sleep(0.05)
 
     logger.log_extraction_complete(
         extraction_id,
-        status='success',
+        status="success",
         processing_time_ms=350,
         products_count=5,
     )

@@ -19,12 +19,12 @@ from monitoring.logging_utils import (
 )
 
 __all__ = [
-    'ExtractionLogger',
-    'PerformanceTracker',
-    'AnomalyDetector',
-    'LogFormatter',
-    'get_extraction_logger',
-    'get_performance_tracker',
-    'get_anomaly_detector',
-    'setup_logging',
+    "ExtractionLogger",
+    "PerformanceTracker",
+    "AnomalyDetector",
+    "LogFormatter",
+    "get_extraction_logger",
+    "get_performance_tracker",
+    "get_anomaly_detector",
+    "setup_logging",
 ]

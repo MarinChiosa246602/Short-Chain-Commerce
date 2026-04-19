@@ -16,9 +16,9 @@ from pipeline.end_to_end import (
 )
 
 __all__ = [
-    'EndToEndPipeline',
-    'BatchProcessor',
-    'ErrorRecovery',
-    'process_image',
-    'process_batch',
+    "EndToEndPipeline",
+    "BatchProcessor",
+    "ErrorRecovery",
+    "process_image",
+    "process_batch",
 ]

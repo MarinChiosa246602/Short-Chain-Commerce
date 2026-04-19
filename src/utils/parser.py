@@ -38,12 +38,12 @@ class FieldValidator:
             Parsed datetime or None if invalid
         """
         date_formats = [
-            '%Y-%m-%d',
-            '%d-%m-%Y',
-            '%m-%d-%Y',
-            '%Y/%m/%d',
-            '%d/%m/%Y',
-            '%m/%d/%Y',
+            "%Y-%m-%d",
+            "%d-%m-%Y",
+            "%m-%d-%Y",
+            "%Y/%m/%d",
+            "%d/%m/%Y",
+            "%m/%d/%Y",
         ]
 
         for fmt in date_formats:
@@ -87,19 +87,19 @@ class FieldValidator:
             UnitType enum or None
         """
         unit_mapping = {
-            'crate': UnitType.CRATE,
-            'box': UnitType.BOX,
-            'kg': UnitType.KG,
-            'kilogram': UnitType.KG,
-            'kilograms': UnitType.KG,
-            'lb': UnitType.LB,
-            'lbs': UnitType.LB,
-            'pound': UnitType.LB,
-            'pounds': UnitType.LB,
-            'piece': UnitType.PIECE,
-            'pieces': UnitType.PIECE,
-            'carton': UnitType.CARTON,
-            'pallet': UnitType.PALLET,
+            "crate": UnitType.CRATE,
+            "box": UnitType.BOX,
+            "kg": UnitType.KG,
+            "kilogram": UnitType.KG,
+            "kilograms": UnitType.KG,
+            "lb": UnitType.LB,
+            "lbs": UnitType.LB,
+            "pound": UnitType.LB,
+            "pounds": UnitType.LB,
+            "piece": UnitType.PIECE,
+            "pieces": UnitType.PIECE,
+            "carton": UnitType.CARTON,
+            "pallet": UnitType.PALLET,
         }
         return unit_mapping.get(value.lower().strip())
 
@@ -115,11 +115,11 @@ class FieldValidator:
             ConditionType enum or None
         """
         condition_mapping = {
-            'excellent': ConditionType.EXCELLENT,
-            'good': ConditionType.GOOD,
-            'fair': ConditionType.FAIR,
-            'poor': ConditionType.POOR,
-            'damaged': ConditionType.DAMAGED,
+            "excellent": ConditionType.EXCELLENT,
+            "good": ConditionType.GOOD,
+            "fair": ConditionType.FAIR,
+            "poor": ConditionType.POOR,
+            "damaged": ConditionType.DAMAGED,
         }
         return condition_mapping.get(value.lower().strip())
 
@@ -158,39 +158,39 @@ class DataParser:
 
         # Extract product ID
         product_id = None
-        if ocr_result and ocr_result.get('product_code'):
-            product_id = ocr_result['product_code']
+        if ocr_result and ocr_result.get("product_code"):
+            product_id = ocr_result["product_code"]
 
         if not product_id:
-            missing_fields.append('product_id')
+            missing_fields.append("product_id")
             product_id = f"SKU-{uuid4().hex[:8].upper()}"  # Generate temp ID
 
         # Extract product name
         product_name = "Unknown Product"
-        if cv_detection and cv_detection.get('class_name') != 'unknown':
-            product_name = cv_detection['class_name'].replace('_', ' ').title()
+        if cv_detection and cv_detection.get("class_name") != "unknown":
+            product_name = cv_detection["class_name"].replace("_", " ").title()
 
         # Extract quantity
         quantity = 1
-        if ocr_result and ocr_result.get('quantity'):
-            quantity = ocr_result['quantity']
+        if ocr_result and ocr_result.get("quantity"):
+            quantity = ocr_result["quantity"]
 
         # Extract unit
         unit = self.validator.validate_unit(default_unit)
 
         # Extract expiry date
         expiry_date = None
-        if ocr_result and ocr_result.get('expiry_date'):
-            expiry_date_str = ocr_result['expiry_date'].get('parsed')
+        if ocr_result and ocr_result.get("expiry_date"):
+            expiry_date_str = ocr_result["expiry_date"].get("parsed")
             if expiry_date_str:
-                expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d')
+                expiry_date = datetime.strptime(expiry_date_str, "%Y-%m-%d")
 
         # Extract condition
         condition = None
-        if cv_detection and cv_detection.get('condition'):
-            cond_data = cv_detection['condition']
+        if cv_detection and cv_detection.get("condition"):
+            cond_data = cv_detection["condition"]
             if isinstance(cond_data, dict):
-                condition_str = cond_data.get('condition', '')
+                condition_str = cond_data.get("condition", "")
                 condition = self.validator.validate_condition(condition_str)
 
         product = Product(
@@ -261,8 +261,8 @@ class DataParser:
         all_missing_fields = []
 
         # Parse each detected product
-        for detection in cv_result.get('detections', []):
-            if detection.get('class_name') == 'product' or detection.get('class_name') in ['crate', 'box']:
+        for detection in cv_result.get("detections", []):
+            if detection.get("class_name") == "product" or detection.get("class_name") in ["crate", "box"]:
                 product, missing = self.parse_product(
                     cv_detection=detection,
                     ocr_result=ocr_result,
@@ -279,8 +279,8 @@ class DataParser:
                 unit=UnitType.PIECE,
             )
             products.append(default_product)
-            all_missing_fields.append('product_name')
-            all_missing_fields.append('quantity')
+            all_missing_fields.append("product_name")
+            all_missing_fields.append("quantity")
 
         # Parse metadata
         metadata = self.parse_metadata(
@@ -292,8 +292,8 @@ class DataParser:
 
         # Get low confidence fields
         low_confidence_fields = []
-        if ocr_result.get('expiry_date') and ocr_result['expiry_date'].get('confidence') == 'low':
-            low_confidence_fields.append('expiry_date')
+        if ocr_result.get("expiry_date") and ocr_result["expiry_date"].get("confidence") == "low":
+            low_confidence_fields.append("expiry_date")
 
         return ExtractionResponse(
             products=products,
@@ -331,40 +331,50 @@ class DataValidator:
         for i, product in enumerate(response.products):
             # Check required fields
             if not product.product_id:
-                errors.append(ValidationErrorDetail(
-                    field=f"products[{i}].product_id",
-                    code="MISSING_REQUIRED",
-                    message="Product ID is required",
-                ))
+                errors.append(
+                    ValidationErrorDetail(
+                        field=f"products[{i}].product_id",
+                        code="MISSING_REQUIRED",
+                        message="Product ID is required",
+                    )
+                )
 
             if not product.product_name:
-                errors.append(ValidationErrorDetail(
-                    field=f"products[{i}].product_name",
-                    code="MISSING_REQUIRED",
-                    message="Product name is required",
-                ))
+                errors.append(
+                    ValidationErrorDetail(
+                        field=f"products[{i}].product_name",
+                        code="MISSING_REQUIRED",
+                        message="Product name is required",
+                    )
+                )
 
             if product.quantity < 1:
-                errors.append(ValidationErrorDetail(
-                    field=f"products[{i}].quantity",
-                    code="OUT_OF_BOUNDS",
-                    message="Quantity must be at least 1",
-                ))
+                errors.append(
+                    ValidationErrorDetail(
+                        field=f"products[{i}].quantity",
+                        code="OUT_OF_BOUNDS",
+                        message="Quantity must be at least 1",
+                    )
+                )
 
         # Validate metadata
         if not response.metadata.source_farm:
-            errors.append(ValidationErrorDetail(
-                field="metadata.source_farm",
-                code="MISSING_REQUIRED",
-                message="Source farm is required",
-            ))
+            errors.append(
+                ValidationErrorDetail(
+                    field="metadata.source_farm",
+                    code="MISSING_REQUIRED",
+                    message="Source farm is required",
+                )
+            )
 
         if not response.metadata.destination:
-            errors.append(ValidationErrorDetail(
-                field="metadata.destination",
-                code="MISSING_REQUIRED",
-                message="Destination is required",
-            ))
+            errors.append(
+                ValidationErrorDetail(
+                    field="metadata.destination",
+                    code="MISSING_REQUIRED",
+                    message="Destination is required",
+                )
+            )
 
         return len(errors) == 0, errors
 
@@ -388,18 +398,22 @@ class DataValidator:
         errors = []
 
         if len(response.products) < min_products:
-            errors.append(ValidationErrorDetail(
-                field="products",
-                code="BELOW_MINIMUM",
-                message=f"Expected at least {min_products} products, got {len(response.products)}",
-            ))
+            errors.append(
+                ValidationErrorDetail(
+                    field="products",
+                    code="BELOW_MINIMUM",
+                    message=f"Expected at least {min_products} products, got {len(response.products)}",
+                )
+            )
 
         if len(response.products) > max_products:
-            errors.append(ValidationErrorDetail(
-                field="products",
-                code="EXCEEDS_MAXIMUM",
-                message=f"Expected at most {max_products} products, got {len(response.products)}",
-            ))
+            errors.append(
+                ValidationErrorDetail(
+                    field="products",
+                    code="EXCEEDS_MAXIMUM",
+                    message=f"Expected at most {max_products} products, got {len(response.products)}",
+                )
+            )
 
         return len(errors) == 0, errors
 
@@ -442,6 +456,7 @@ class ExtractionProcessor:
             Dictionary with extraction results and validation status
         """
         import time
+
         start_time = time.time()
 
         # Parse extraction
@@ -458,10 +473,10 @@ class ExtractionProcessor:
         processing_time = (time.time() - start_time) * 1000
 
         return {
-            'extraction': extraction,
-            'is_valid': is_valid,
-            'errors': errors,
-            'processing_time_ms': processing_time,
+            "extraction": extraction,
+            "is_valid": is_valid,
+            "errors": errors,
+            "processing_time_ms": processing_time,
         }
 
     def parse_product_from_text(self, text: str) -> Optional[Product]:
@@ -475,7 +490,7 @@ class ExtractionProcessor:
             Parsed Product or None
         """
         # Try to extract product info from text
-        lines = text.strip().split('\n')
+        lines = text.strip().split("\n")
 
         product_id = None
         product_name = None
@@ -486,19 +501,19 @@ class ExtractionProcessor:
 
             # Try to find product code
             if not product_id:
-                match = re.search(r'\b([A-Z]{2,5}-?\d{3,6})\b', line, re.IGNORECASE)
+                match = re.search(r"\b([A-Z]{2,5}-?\d{3,6})\b", line, re.IGNORECASE)
                 if match:
                     product_id = match.group(1)
 
             # Try to find quantity
             if quantity is None:
-                match = re.search(r'(\d+)\s*(?:pcs?|kg|lbs?|box|crate)', line, re.IGNORECASE)
+                match = re.search(r"(\d+)\s*(?:pcs?|kg|lbs?|box|crate)", line, re.IGNORECASE)
                 if match:
                     quantity = int(match.group(1))
 
             # Product name is usually first meaningful text
             if not product_name and len(line) > 3 and len(line) < 100:
-                if not any(kw in line.lower() for kw in ['exp', 'best', 'qty', 'sku', 'prod']):
+                if not any(kw in line.lower() for kw in ["exp", "best", "qty", "sku", "prod"]):
                     product_name = line
 
         if product_id or product_name:
@@ -531,7 +546,7 @@ def parse_extraction(
     """
     processor = ExtractionProcessor()
     result = processor.process(cv_result, ocr_result, **kwargs)
-    return result['extraction']
+    return result["extraction"]
 
 
 def validate_extraction(response: ExtractionResponse) -> tuple[bool, List[ValidationErrorDetail]]:
