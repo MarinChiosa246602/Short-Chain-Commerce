@@ -25,7 +25,9 @@
       "Bash(.venv/Scripts/python.exe -m pip install --upgrade pip)",
       "Bash(.venv/Scripts/python.exe -m pip install black)",
       "Bash(.venv/Scripts/black.exe src/)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
