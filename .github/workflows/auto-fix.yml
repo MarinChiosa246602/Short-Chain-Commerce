@@ -1,0 +1,172 @@
+name: Auto-Fix
+
+# ---------------------------------------------------------------------------
+# Applies safe, deterministic fixes (formatting + import order) automatically
+# on feature branches, then commits the result back.
+#
+# Guardrails:
+#   - Never runs on `main` (protected by branch filter below).
+#   - Skips if the push already comes from the bot (avoids infinite loops).
+#   - Skips when security-sensitive paths are touched (.env*, secrets, keys…).
+#   - Never auto-merges – only commits a fix and opens/comments on the PR.
+# ---------------------------------------------------------------------------
+on:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: write        # push fix commit
+  pull-requests: write   # comment on / open PR
+
+jobs:
+  auto-fix:
+    name: Auto-Fix (black + isort)
+    runs-on: ubuntu-22.04
+
+    # Skip commits already made by this workflow (avoid infinite loops).
+    if: |
+      !startsWith(github.event.head_commit.message, 'chore(auto-fix):')
+
+    steps:
+      # ── Checkout (full history so we can push back) ───────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Use the default GITHUB_TOKEN; the push below will trigger CI again
+          # but the commit message guard above prevents an infinite loop.
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      # ── Guard: skip if security-sensitive files were touched ──────────────
+      - name: Check for sensitive file changes
+        id: sensitive
+        run: |
+          SENSITIVE_PATTERNS=('.env' 'secret' 'key' 'credential' 'password' 'token' 'cert' 'pem' 'pfx')
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || true)
+          echo "Changed files: $CHANGED"
+          SKIP=false
+          for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+            if echo "$CHANGED" | grep -qi "$pattern"; then
+              echo "Sensitive file matched pattern '$pattern' – skipping auto-fix."
+              SKIP=true
+              break
+            fi
+          done
+          echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
+
+      # ── Python setup ──────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        if: steps.sensitive.outputs.skip == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install formatting tools
+        if: steps.sensitive.outputs.skip == 'false'
+        run: pip install black isort
+
+      # ── Apply safe fixes ──────────────────────────────────────────────────
+      - name: Run black (auto-format)
+        if: steps.sensitive.outputs.skip == 'false'
+        run: black src/
+
+      - name: Run isort (sort imports)
+        if: steps.sensitive.outputs.skip == 'false'
+        run: isort src/
+
+      # ── Commit & push if anything changed ─────────────────────────────────
+      - name: Commit and push fixes
+        if: steps.sensitive.outputs.skip == 'false'
+        id: commit
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No formatting changes needed."
+          else
+            git commit -m "chore(auto-fix): apply black + isort formatting [skip ci]"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Comment on the PR with what was fixed ─────────────────────────────
+      - name: Comment on PR
+        if: |
+          steps.sensitive.outputs.skip == 'false' &&
+          steps.commit.outputs.changed == 'true' &&
+          github.event_name == 'push'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Find an open PR for this branch
+            const branch = context.ref.replace('refs/heads/', '');
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${branch}`,
+            });
+
+            if (prs.length === 0) {
+              console.log('No open PR found for this branch – skipping comment.');
+              return;
+            }
+
+            const pr = prs[0];
+
+            // Remove previous auto-fix comments
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+            });
+            for (const c of comments) {
+              if (c.user.type === 'Bot' && c.body.includes('Auto-Fix Agent')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: c.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: [
+                '## 🤖 Auto-Fix Agent',
+                '',
+                'Safe formatting fixes were applied automatically and pushed to this branch:',
+                '',
+                '| Tool | Action |',
+                '|------|--------|',
+                '| `black`  | Re-formatted source files to PEP 8 style |',
+                '| `isort`  | Sorted and grouped import statements     |',
+                '',
+                '> ⚠️ Logic bugs and security issues are **not** auto-fixed.',
+                '> Review the `code-review` workflow results and fix those manually.',
+                '',
+                '> 🔒 Auto-merge is **never** performed. A human must merge this PR.',
+                '',
+                `_Triggered by commit \`${{ github.sha }}\`_`,
+              ].join('\n'),
+            });
+
+      # ── Summary when sensitive files were skipped ─────────────────────────
+      - name: Summarise skip
+        if: steps.sensitive.outputs.skip == 'true'
+        run: |
+          echo "::warning title=Auto-Fix Skipped::Security-sensitive files were detected in this push. Auto-fix was skipped to avoid accidentally modifying or exposing sensitive content."
+
+      # ── Summary when no fixes were needed ────────────────────────────────
+      - name: Summarise no-op
+        if: |
+          steps.sensitive.outputs.skip == 'false' &&
+          steps.commit.outputs.changed == 'false'
+        run: echo "✅ No formatting issues found – nothing to auto-fix."

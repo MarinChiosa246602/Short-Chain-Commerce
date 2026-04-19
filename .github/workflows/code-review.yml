@@ -1,0 +1,217 @@
+name: Code Review
+
+# ---------------------------------------------------------------------------
+# Triggers: every push and every PR targeting any branch.
+# ---------------------------------------------------------------------------
+on:
+  push:
+    branches-ignore:
+      - main          # main is protected; auto-fix workflow handles feature branches
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write   # needed to post PR comments
+
+jobs:
+  review:
+    name: "Review – Python ${{ matrix.python-version }}"
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Python setup ──────────────────────────────────────────────────────
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+            ${{ runner.os }}-pip-
+
+      # ── Install deps ──────────────────────────────────────────────────────
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install isort bandit
+
+      # ── Formatting check (black) ──────────────────────────────────────────
+      - name: Check formatting (black)
+        id: black
+        continue-on-error: true
+        run: |
+          black --check src/ 2>&1 | tee /tmp/black.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      # ── Import order check (isort) ────────────────────────────────────────
+      - name: Check import order (isort)
+        id: isort
+        continue-on-error: true
+        run: |
+          isort --check-only src/ 2>&1 | tee /tmp/isort.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      # ── Lint (flake8) ─────────────────────────────────────────────────────
+      - name: Lint (flake8)
+        id: flake8
+        continue-on-error: true
+        run: |
+          flake8 src/ --max-line-length=127 \
+            --format='%(path)s:%(row)d:%(col)d: %(code)s %(text)s' \
+            2>&1 | tee /tmp/flake8.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      # ── Security scan (bandit) ────────────────────────────────────────────
+      - name: Security scan (bandit)
+        id: bandit
+        continue-on-error: true
+        run: |
+          bandit -r src/ -ll -f txt 2>&1 | tee /tmp/bandit.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      # ── Tests + coverage ──────────────────────────────────────────────────
+      - name: Run tests (pytest + coverage)
+        id: pytest
+        continue-on-error: true
+        run: |
+          pytest tests/ \
+            --cov=src \
+            --cov-report=xml:coverage-${{ matrix.python-version }}.xml \
+            --cov-report=term \
+            -v 2>&1 | tee /tmp/pytest.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      # ── Upload artifacts ──────────────────────────────────────────────────
+      - name: Upload review artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-logs-py${{ matrix.python-version }}
+          path: |
+            /tmp/black.txt
+            /tmp/isort.txt
+            /tmp/flake8.txt
+            /tmp/bandit.txt
+            /tmp/pytest.txt
+            coverage-${{ matrix.python-version }}.xml
+          retention-days: 14
+
+      # ── Post PR comment with review summary (PR events only) ──────────────
+      - name: Post review summary to PR
+        if: github.event_name == 'pull_request' && matrix.python-version == '3.11'
+        uses: actions/github-script@v7
+        env:
+          BLACK_EXIT: ${{ steps.black.outputs.exit_code }}
+          ISORT_EXIT: ${{ steps.isort.outputs.exit_code }}
+          FLAKE8_EXIT: ${{ steps.flake8.outputs.exit_code }}
+          BANDIT_EXIT: ${{ steps.bandit.outputs.exit_code }}
+          PYTEST_EXIT: ${{ steps.pytest.outputs.exit_code }}
+        with:
+          script: |
+            const fs = require('fs');
+
+            function icon(exitCode) {
+              return exitCode === '0' ? '✅' : '❌';
+            }
+
+            function readLog(path) {
+              try {
+                const content = fs.readFileSync(path, 'utf8').trim();
+                return content.length > 2000
+                  ? content.slice(0, 2000) + '\n...(truncated)'
+                  : content;
+              } catch { return '_(no output)_'; }
+            }
+
+            const blackOk   = process.env.BLACK_EXIT  === '0';
+            const isortOk   = process.env.ISORT_EXIT  === '0';
+            const flake8Ok  = process.env.FLAKE8_EXIT === '0';
+            const banditOk  = process.env.BANDIT_EXIT === '0';
+            const pytestOk  = process.env.PYTEST_EXIT === '0';
+            const allOk     = blackOk && isortOk && flake8Ok && banditOk && pytestOk;
+
+            const header = allOk
+              ? '## 🤖 Code Review Agent — All checks passed ✅'
+              : '## 🤖 Code Review Agent — Issues found ⚠️';
+
+            const table = [
+              '| Check | Status |',
+              '|-------|--------|',
+              `| Formatting (black)   | ${icon(process.env.BLACK_EXIT)}  |`,
+              `| Import order (isort) | ${icon(process.env.ISORT_EXIT)}  |`,
+              `| Lint (flake8)        | ${icon(process.env.FLAKE8_EXIT)} |`,
+              `| Security (bandit)    | ${icon(process.env.BANDIT_EXIT)} |`,
+              `| Tests (pytest)       | ${icon(process.env.PYTEST_EXIT)} |`,
+            ].join('\n');
+
+            let details = '';
+            if (!blackOk) {
+              details += `\n<details><summary>black output</summary>\n\n\`\`\`\n${readLog('/tmp/black.txt')}\n\`\`\`\n</details>`;
+            }
+            if (!isortOk) {
+              details += `\n<details><summary>isort output</summary>\n\n\`\`\`\n${readLog('/tmp/isort.txt')}\n\`\`\`\n</details>`;
+            }
+            if (!flake8Ok) {
+              details += `\n<details><summary>flake8 output</summary>\n\n\`\`\`\n${readLog('/tmp/flake8.txt')}\n\`\`\`\n</details>`;
+            }
+            if (!banditOk) {
+              details += `\n<details><summary>bandit output</summary>\n\n\`\`\`\n${readLog('/tmp/bandit.txt')}\n\`\`\`\n</details>`;
+            }
+            if (!pytestOk) {
+              details += `\n<details><summary>pytest output</summary>\n\n\`\`\`\n${readLog('/tmp/pytest.txt')}\n\`\`\`\n</details>`;
+            }
+
+            const fixNote = allOk ? '' :
+              '\n\n> 💡 **Tip:** formatting and import-order issues are auto-fixed by the `auto-fix` workflow on non-`main` branches.';
+
+            const body = `${header}\n\n${table}${details}${fixNote}\n\n_Python 3.11 · commit \`${{ github.sha }}\`_`;
+
+            // Delete any previous bot comment to avoid spam
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            for (const c of comments) {
+              if (c.user.type === 'Bot' && c.body.includes('Code Review Agent')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: c.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      # ── Fail the job if any check failed ─────────────────────────────────
+      - name: Fail if any check failed
+        if: |
+          steps.black.outputs.exit_code != '0' ||
+          steps.isort.outputs.exit_code != '0' ||
+          steps.flake8.outputs.exit_code != '0' ||
+          steps.bandit.outputs.exit_code != '0' ||
+          steps.pytest.outputs.exit_code != '0'
+        run: |
+          echo "One or more review checks failed. See logs above."
+          exit 1
