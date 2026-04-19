@@ -31,7 +31,13 @@
       "Bash(.venv/Scripts/python.exe -m flake8 src/ --max-line-length=127)",
       "Bash(.venv/Scripts/python.exe -m pip install flake8)",
       "Bash(.venv/Scripts/black.exe src/models/cv_pipeline.py src/models/condition_assessment.py src/models/ocr_pipeline.py src/monitoring/logging_utils.py src/database/db_manager.py)",
-      "Bash(.venv/Scripts/black.exe --target-version py310 --target-version py311 src/)"
+      "Bash(.venv/Scripts/black.exe --target-version py310 --target-version py311 src/)",
+      "Bash(python *)",
+      "Bash(pytest *)",
+      "Bash(mkdir -p models pipeline utils)",
+      "Bash(touch models/__init__.py pipeline/__init__.py utils/__init__.py)",
+      "Bash(dir *)",
+      "Bash(type NUL)"
     ]
   }
 }
