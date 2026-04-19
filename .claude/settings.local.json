@@ -18,7 +18,9 @@
       "Bash(timeout 120 tail -n 100 \"C:\\\\Users\\\\mrmar\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-mrmar-Desktop-Short-Chain-Commerce\\\\c89eae12-0d05-4fcf-8f18-7098203dd42b\\\\tasks\\\\bxgaynkqh.output\")",
       "Bash(rm -rf data/raw/images/* data/raw/labels/* data/raw/*annotations.json)",
       "Bash(/c/Users/mrmar/anaconda3/python.exe scripts/generate_mock_data.py --num_images 500 --output_dir data/raw)",
-      "Bash(/c/Users/mrmar/anaconda3/python.exe scripts/train_model.py --epochs 100 --batch_size 16 --model_type yolov8s)"
+      "Bash(/c/Users/mrmar/anaconda3/python.exe scripts/train_model.py --epochs 100 --batch_size 16 --model_type yolov8s)",
+      "Bash(python -m pytest tests/test_ocr_pipeline.py -v --tb=short)",
+      "Bash(python3 -m pytest tests/test_ocr_pipeline.py -v --tb=short)"
     ]
   }
 }
