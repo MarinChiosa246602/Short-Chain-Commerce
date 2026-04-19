@@ -283,7 +283,6 @@ class ConditionAssessorAdvanced:
     def _analyze_color_distribution(self, hsv: np.ndarray) -> Dict[str, Any]:
         """Analyze color distribution for quality assessment."""
         # Calculate hue histogram
-        hue = hsv[:, :, 0]
         hist = cv2.calcHist([hsv], [0], None, [180], [0, 180])
         hist_norm = cv2.normalize(hist, hist).flatten()
 
@@ -484,7 +483,7 @@ if __name__ == "__main__":
 
     print(f"Condition: {result['condition']}")
     print(f"Score: {result['score']}/100")
-    print(f"Breakdown:")
+    print("Breakdown:")
     print(f"  Damage: {result['scores_breakdown']['damage_score']}")
     print(f"  Freshness: {result['scores_breakdown']['freshness_score']}")
     print(f"  Texture: {result['scores_breakdown']['texture_score']}")

@@ -11,24 +11,17 @@ This module chains together all components:
 
 import time
 import logging
-import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import cv2
 import numpy as np
 
-# Allow running this file directly (python src/pipeline/end_to_end.py)
-# by ensuring the src directory is on sys.path.
-SRC_ROOT = Path(__file__).resolve().parent.parent
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
-
-from models.cv_pipeline import CVPipeline, ObjectDetector, ImagePreprocessor
-from models.ocr_pipeline import OCRPipeline, extract_text
-from utils.parser import ExtractionProcessor, DataValidator
+from models.cv_pipeline import CVPipeline, ImagePreprocessor  # noqa: E402
+from models.ocr_pipeline import OCRPipeline, extract_text  # noqa: E402
+from utils.parser import ExtractionProcessor  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -358,7 +351,7 @@ class EndToEndPipeline:
                                     "recovery_method": "image_preprocessing",
                                     "processing_time_ms": (time.time() - start_time) * 1000,
                                 }
-                        except:
+                        except Exception:
                             continue
                 except Exception as recovery_error:
                     logger.error(f"Recovery failed: {recovery_error}")

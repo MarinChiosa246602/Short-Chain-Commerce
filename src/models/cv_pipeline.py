@@ -7,12 +7,12 @@ This module handles:
 - Condition assessment
 """
 
+import io
+
 import cv2
 import numpy as np
-from pathlib import Path
-from typing import List, Optional, Dict, Any
 from PIL import Image
-import io
+from typing import Any, Dict, List, Optional
 
 try:
     from ultralytics import YOLO
@@ -278,7 +278,7 @@ class ObjectDetector:
 
                     # Add condition assessment for products
                     if detection["class_name"] == "product":
-                        roi = image[int(y1) : int(y2), int(x1) : int(x2)]
+                        roi = image[int(y1) : int(y2), int(x1) : int(x2)]  # noqa: E203
                         condition = self.condition_assessor.assess_condition(roi, "unknown")
                         detection["condition"] = condition
 
@@ -344,7 +344,7 @@ class CVPipeline:
         image = self.preprocessor.load_image(image_source)
 
         # Preprocess for detection
-        preprocessed = self.preprocessor.preprocess_for_detection(image)
+        _ = self.preprocessor.preprocess_for_detection(image)
 
         # Run object detection
         detections = []

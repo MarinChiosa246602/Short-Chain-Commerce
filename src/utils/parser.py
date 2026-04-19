@@ -9,9 +9,8 @@ This module handles:
 
 import re
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Dict, List, Optional, Any
 from uuid import uuid4
-from pydantic import ValidationError
 
 from models.schemas import (
     ExtractionResponse,

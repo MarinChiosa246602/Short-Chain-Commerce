@@ -8,14 +8,13 @@ Provides:
 - Health check utilities
 """
 
-import logging
 import json
+import logging
 import time
-from datetime import datetime
-from pathlib import Path
-from typing import Optional, Dict, Any, List
 from contextlib import contextmanager
+from datetime import datetime
 from threading import Lock
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 

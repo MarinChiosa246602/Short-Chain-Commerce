@@ -7,13 +7,12 @@ Provides:
 - Data persistence and history tracking
 """
 
-import sqlite3
 import json
+import sqlite3
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict, Any
-from contextlib import contextmanager
-from uuid import UUID, uuid4
+from typing import Any, Dict, List, Optional
 
 
 class DatabaseManager:

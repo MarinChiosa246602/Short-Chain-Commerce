@@ -4,37 +4,24 @@ FastAPI application for the Short Chain Commerce logistics data extraction API.
 Full implementation with CV pipeline, OCR, and monitoring integration.
 """
 
-import io
+import logging
 import sys
 import time
-import logging
-from pathlib import Path
-from typing import Optional, List
 from datetime import datetime
+from pathlib import Path
+from typing import List, Optional
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
-
-from models.schemas import (
-    SuccessResponse,
-    PartialSuccessResponse,
-    ErrorResponse,
-    ValidationErrorDetail,
-    ImageUploadRequest,
-    ExtractionResponse,
-)
-from models import UnitType, ConditionType, Product, Metadata
 
 # Add src to path for imports
 SRC_ROOT = Path(__file__).resolve().parent
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from pipeline import EndToEndPipeline, BatchProcessor
-from models.schemas import ValidationErrorDetail
+from pipeline import EndToEndPipeline, BatchProcessor  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
