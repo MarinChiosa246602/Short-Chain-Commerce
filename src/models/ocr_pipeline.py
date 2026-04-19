@@ -14,6 +14,7 @@ from datetime import datetime
 import cv2
 import numpy as np
 from PIL import Image
+from paddle.device import device
 
 try:
     from paddleocr import PaddleOCR
@@ -131,7 +132,8 @@ class TextExtractor:
         if not PADDLEOCR_AVAILABLE:
             raise ImportError("paddleocr package is required. Install with: pip install paddleocr paddlepaddle")
 
-        self.ocr = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu)
+        device = "gpu" if use_gpu else "cpu"
+        self.ocr = PaddleOCR(use_textline_orientation=True, lang=lang, device=device)
         self.preprocessor = OCRPreprocessor()
 
     def extract_text(self, image: Any, enhance: bool = True) -> List[Dict[str, Any]]:
