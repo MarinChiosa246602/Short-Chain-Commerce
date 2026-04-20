@@ -289,7 +289,7 @@ class ConditionAssessorAdvanced:
         peaks = []
         for i in range(0, 180, 10):
             if hist_norm[i] > 0.1:
-                peaks.append({"hue_range": f"{i}-{i+10}", "relative_intensity": float(hist_norm[i])})
+                peaks.append({"hue_range": f"{i}-{i + 10}", "relative_intensity": float(hist_norm[i])})
 
         # Calculate color uniformity
         color_uniformity = 1 - np.std(hist_norm)

@@ -136,30 +136,6 @@ class TestDataValidator:
         assert is_valid is True
         assert len(errors) == 0
 
-   # test_validate_missing_product_id — replace the whole test body:
-def test_validate_missing_product_id(self):
-    from pydantic import ValidationError
-    with pytest.raises(ValidationError):
-        Product(product_id="", product_name="Tomato", quantity=24, unit=UnitType.CRATE)
-
-# test_validate_missing_metadata — replace:
-def test_validate_missing_metadata(self):
-    from pydantic import ValidationError
-    with pytest.raises(ValidationError):
-        Metadata(source_farm="", destination="")
-
-# test_validate_empty_product_id — replace:
-def test_validate_empty_product_id(self):
-    from pydantic import ValidationError
-    with pytest.raises(ValidationError):
-        Product(product_id="   ", product_name="Test", quantity=10, unit=UnitType.CRATE)
-
-# test_validate_bounds_below_minimum — change e["code"] to e.code:
-assert any(e.code == "BELOW_MINIMUM" for e in errors)
-
-# test_validate_bounds_above_maximum — change e["code"] to e.code:
-assert any(e.code == "EXCEEDS_MAXIMUM" for e in errors)
-
 
 class TestExtractionProcessor:
     """Test extraction processor."""
@@ -375,23 +351,17 @@ class TestDataValidatorEdgeCases:
     def test_validate_empty_product_id(self):
         """Test validation catches empty product ID."""
         from models.schemas import Product, Metadata, ExtractionResponse
+        from pydantic import ValidationError
+        import pytest
 
-        validator = DataValidator()
-        response = ExtractionResponse(
-            products=[
-                Product(
-                    product_id="   ",
-                    product_name="Test",
-                    quantity=10,
-                    unit=UnitType.CRATE
-                )
-            ],
-            metadata=Metadata(source_farm="F", destination="D")
-        )
-
-        is_valid, errors = validator.validate(response)
-        # Empty/whitespace ID should fail validation
-        assert is_valid is False
+        # Pydantic validator should catch whitespace product_id
+        with pytest.raises(ValidationError, match="product_id cannot be empty"):
+            Product(
+                product_id="   ",
+                product_name="Test",
+                quantity=10,
+                unit=UnitType.CRATE
+            )
 
     def test_validate_bounds_below_minimum(self):
         """Test bounds validation for below minimum products."""
@@ -405,7 +375,7 @@ class TestDataValidatorEdgeCases:
 
         is_valid, errors = validator.validate_bounds(response, min_products=1)
         assert is_valid is False
-        assert any(e["code"] == "BELOW_MINIMUM" for e in errors)
+        assert any(e.code == "BELOW_MINIMUM" for e in errors)
 
     def test_validate_bounds_above_maximum(self):
         """Test bounds validation for above maximum products."""
@@ -428,7 +398,7 @@ class TestDataValidatorEdgeCases:
 
         is_valid, errors = validator.validate_bounds(response, max_products=5)
         assert is_valid is False
-        assert any(e["code"] == "EXCEEDS_MAXIMUM" for e in errors)
+        assert any(e.code == "EXCEEDS_MAXIMUM" for e in errors)
 
 
 class TestConvenienceFunctions:

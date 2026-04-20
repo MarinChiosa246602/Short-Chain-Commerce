@@ -81,20 +81,20 @@ class TestTextExtractorParsers:
         extractor = TextExtractor.__new__(TextExtractor)  # Skip __init__
 
         texts = [
-            {'text': 'EXP 15-04-2026', 'confidence': 0.9},
+            {'text': 'EXP 15-04-2027', 'confidence': 0.9},
             {'text': 'BEST', 'confidence': 0.8},
         ]
 
         result = extractor.parse_expiry_date(texts)
         assert result is not None
-        assert '2026' in result['raw']
+        assert '2027' in result['raw']
 
     def test_parse_expiry_date_simple_format(self):
         """Test parsing simple expiry date format."""
         extractor = TextExtractor.__new__(TextExtractor)
 
         texts = [
-            {'text': '12-25-2026', 'confidence': 0.95},
+            {'text': '12-25-2027', 'confidence': 0.95},
         ]
 
         result = extractor.parse_expiry_date(texts)
