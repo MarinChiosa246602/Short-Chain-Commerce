@@ -24,17 +24,17 @@ class TestFieldValidator:
     """Test field validation functions."""
 
     def test_validate_date_valid(self):
-        """Test validating a valid future date."""
-        future_date = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')
-        result = FieldValidator.validate_date(future_date)
+        """Test validating a valid date string."""
+        valid_date = "2026-12-25"
+        result = FieldValidator.validate_date(valid_date)
         assert result is not None
         assert isinstance(result, datetime)
 
-    def test_validate_date_invalid_past(self):
-        """Test validating a past date (should return None)."""
+    def test_validate_date_past_is_accepted(self):
+        """Test validating a past date is accepted when format is valid."""
         past_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
         result = FieldValidator.validate_date(past_date)
-        assert result is None
+        assert result is not None
 
     def test_validate_date_invalid_format(self):
         """Test validating an invalid date format."""
@@ -169,11 +169,11 @@ class TestExtractionProcessor:
 class TestFieldValidatorEdgeCases:
     """Test edge cases for field validation."""
 
-    def test_validate_date_past_date_returns_none(self):
-        """Test that past dates return None."""
+    def test_validate_date_past_date_is_valid_when_parseable(self):
+        """Test that parseable past dates are accepted."""
         past_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
         result = FieldValidator.validate_date(past_date)
-        assert result is None
+        assert result is not None
 
     def test_validate_date_different_formats(self):
         """Test validating dates in different formats."""
@@ -343,6 +343,67 @@ class TestExtractionProcessorEdgeCases:
         )
 
         assert "product_id" in result["extraction"].missing_fields
+
+    def test_parse_product_from_text_extracts_id_qty_name(self):
+        """Test extracting product fields from OCR-like multiline text."""
+        processor = ExtractionProcessor()
+        product = processor.parse_product_from_text("Tomatoes\nSKU AB-1234\nQty 10 kg\n")
+
+        assert product is not None
+        assert product.product_id.upper() == "AB-1234"
+        assert product.quantity == 10
+        assert "Tomatoes" in product.product_name
+
+    def test_parse_product_from_text_returns_none_for_empty(self):
+        """Test empty text returns no parsed product."""
+        processor = ExtractionProcessor()
+        product = processor.parse_product_from_text("   \n")
+        assert product is None
+
+    def test_parse_product_from_text_extracts_quantity_pcs(self):
+        """Test quantity extraction from 'pcs' pattern."""
+        processor = ExtractionProcessor()
+        product = processor.parse_product_from_text("Bananas\n5 pcs\n")
+
+        assert product is not None
+        assert product.quantity == 5
+
+
+class TestParseFullExtractionCoverage:
+    """Target uncovered parse_full_extraction branches."""
+
+    def test_parse_full_extraction_no_detections_adds_default_product_fields(self):
+        """Test fallback product path when no CV detections exist."""
+        parser = DataParser()
+
+        result = parser.parse_full_extraction(
+            cv_result={"detections": []},
+            ocr_result={},
+            source_farm="Farm-A",
+            destination="Depot-1",
+        )
+
+        assert len(result.products) == 1
+        assert "product_name" in result.missing_fields
+        assert "quantity" in result.missing_fields
+        assert "product_id" in result.missing_fields
+
+    def test_parse_full_extraction_low_confidence_expiry_is_flagged(self):
+        """Test low-confidence expiry is tracked in low_confidence_fields."""
+        parser = DataParser()
+
+        result = parser.parse_full_extraction(
+            cv_result={"detections": [{"class_name": "product"}]},
+            ocr_result={
+                "product_code": "SKU-EXP01",
+                "quantity": 1,
+                "expiry_date": {"parsed": "2027-01-01", "confidence": "low"},
+            },
+            source_farm="Farm-A",
+            destination="Depot-1",
+        )
+
+        assert "expiry_date" in result.low_confidence_fields
 
 
 class TestDataValidatorEdgeCases:

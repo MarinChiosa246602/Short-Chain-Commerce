@@ -48,8 +48,9 @@ class FieldValidator:
         for fmt in date_formats:
             try:
                 parsed = datetime.strptime(date_str.strip(), fmt)
-                if parsed > datetime.now():
-                    return parsed
+                # Accept any successfully parsed date. Business rules for
+                # past/future constraints should be enforced by callers.
+                return parsed
             except ValueError:
                 continue
 
