@@ -28,7 +28,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY src/ ./src/
 COPY tests/ ./tests/
-COPY configs/ ./configs/
+RUN mkdir -p /app/configs
 
 # Default command
 CMD ["python3.10", "src/api/main.py"]
