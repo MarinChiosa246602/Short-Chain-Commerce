@@ -1,0 +1,51 @@
+name: "Copilot Setup Steps"
+
+# Run whenever this file changes (for validation), or on manual trigger.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # The job MUST be called `copilot-setup-steps` to be picked up by Copilot.
+  copilot-setup-steps:
+    runs-on: ubuntu-22.04
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install project dependencies
+        run: |
+          pip install --upgrade pip
+          # Install lightweight deps only (skip heavy GPU/CV libs that aren't
+          # needed for code-review/lint/test tasks performed by the agent).
+          pip install \
+            fastapi uvicorn pydantic \
+            numpy pandas \
+            Pillow \
+            python-dotenv requests \
+            pytest pytest-cov \
+            flake8 black isort bandit
+
+      - name: Verify toolchain
+        run: |
+          python --version
+          black --version
+          flake8 --version
+          isort --version
+          bandit --version
+          pytest --version
