@@ -1,0 +1,6 @@
+[flake8]
+# E203: whitespace before ':'
+# This is incompatible with Black's formatting style
+ignore = E203, W503
+max-line-length = 88
+exclude = .git,__pycache__,.venv,build,dist
