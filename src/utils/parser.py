@@ -271,13 +271,14 @@ class DataParser:
 
         # If no products detected, create a default entry
         if not products:
-         product, missing = self.parse_product(
+             default_product, missing = self.parse_product(
                 cv_detection=None,
                 ocr_result=ocr_result,
-         )  
-        products.append(default_product)
-        all_missing_fields.append("product_name")
-        all_missing_fields.append("quantity")
+             )
+             products.append(default_product)
+             all_missing_fields.extend(missing)
+             all_missing_fields.append("product_name")
+             all_missing_fields.append("quantity")
 
         # Parse metadata
         metadata = self.parse_metadata(

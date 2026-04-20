@@ -8,9 +8,13 @@ This module handles:
 - Confidence filtering
 """
 
+from __future__ import annotations
+
+import io
 import re
-from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+
 import cv2
 import numpy as np
 from PIL import Image
@@ -37,22 +41,17 @@ class OCRPreprocessor:
         Returns:
             Enhanced image optimized for text recognition
         """
-        # Convert to LAB color space
         lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
 
-        # Apply CLAHE to L channel
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         enhanced_l = clahe.apply(l)
 
-        # Merge and convert back
         enhanced_lab = cv2.merge((enhanced_l, a, b))
         enhanced = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
 
-        # Apply denoising
         denoised = cv2.fastNlMeansDenoisingColored(enhanced, None, 10, 10, 7, 21)
 
-        # Sharpen to improve text edges
         kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
         sharpened = cv2.filter2D(denoised, -1, kernel)
 
@@ -71,7 +70,7 @@ class OCRPreprocessor:
             Cropped ROI image
         """
         x1, y1, x2, y2 = bbox
-        return image[max(0, y1) : min(image.shape[0], y2), max(0, x1) : min(image.shape[1], x2)]  # noqa: E203
+        return image[max(0, y1) : min(image.shape[0], y2), max(0, x1) : min(image.shape[1], x2)]
 
     @staticmethod
     def rotate_for_ocr(image: np.ndarray, angle: float = 0) -> np.ndarray:
@@ -98,32 +97,34 @@ class TextExtractor:
     """Extract and parse text from images using OCR."""
 
     DATE_PATTERNS = [
-    r'(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
-    r'(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{4}[-/]\d{1,2}[-/]\d{1,2})',
-    r'\b(\d{1,2}[-/]\d{1,2}[-/]\d{4})\b',
-    r'\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b',
-]
-
-DATE_FORMATS = [
-    "%d-%m-%Y", "%m-%d-%Y", "%Y-%m-%d",
-    "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d",
-]
-
-    # Product code patterns
-PRODUCT_CODE_PATTERNS = [
-        r"\b([A-Z]{2,5}-?\d{3,6})\b",  # SKU-12345
-        r"\b(SKU|Sku|sku)\s*:?\s*([A-Z0-9-]+)\b",  # SKU: ABC-123
-        r"\b(PROD|PRODID|PID)-?\d+\b",  # PROD-12345
+        r"(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
+        r"(?:EXP(?:IRY)?|BEST\s*(?:BEFORE|BY)?|USE\s*BY|BB)[:\s.]*(\d{4}[-/]\d{1,2}[-/]\d{1,2})",
+        r"\b(\d{1,2}[-/]\d{1,2}[-/]\d{4})\b",
+        r"\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b",
     ]
 
-    # Quantity patterns
-QUANTITY_PATTERNS = [
+    DATE_FORMATS = [
+        "%d-%m-%Y",
+        "%m-%d-%Y",
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%Y/%m/%d",
+    ]
+
+    PRODUCT_CODE_PATTERNS = [
+        r"\b([A-Z]{2,5}-?\d{3,6})\b",
+        r"\b(SKU|Sku|sku)\s*:?\s*([A-Z0-9-]+)\b",
+        r"\b(PROD|PRODID|PID)-?\d+\b",
+    ]
+
+    QUANTITY_PATTERNS = [
         r"\b(\d+)\s*(?:pcs?|pieces?|units?|items?)\b",
         r"\b(\d+)\s*(?:kg|lbs?|g|oz|lb)\b",
         r"\bqty[:\s]+(\d+)\b",
     ]
 
-def __init__(self, lang: str = "en", use_gpu: bool = False):
+    def __init__(self, lang: str = "en", use_gpu: bool = False):
         """
         Initialize the text extractor.
 
@@ -134,10 +135,54 @@ def __init__(self, lang: str = "en", use_gpu: bool = False):
         if not PADDLEOCR_AVAILABLE:
             raise ImportError("paddleocr package is required. Install with: pip install paddleocr paddlepaddle")
 
-        device = "gpu" if use_gpu else "cpu"
-        self.ocr = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu)
+        # PaddleOCR argument names vary between versions.
+        try:
+            self.ocr = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu)
+        except (TypeError, ValueError):
+            kwargs: Dict[str, Any] = {"use_angle_cls": True, "lang": lang}
+            if use_gpu:
+                kwargs["device"] = "gpu"
+            self.ocr = PaddleOCR(**kwargs)
         self.preprocessor = OCRPreprocessor()
-def extract_text(self, image: Any, enhance: bool = True) -> List[Dict[str, Any]]:
+
+    def _normalize_ocr_result(self, raw_result: Any) -> List[Dict[str, Any]]:
+        """Normalize PaddleOCR output into a common list-of-dicts shape."""
+        texts: List[Dict[str, Any]] = []
+
+        # Most common PaddleOCR result shape from `ocr`:
+        # [[ [bbox], (text, confidence) ], ...]
+        if isinstance(raw_result, list) and raw_result:
+            first = raw_result[0]
+            if isinstance(first, list):
+                for line in first:
+                    if isinstance(line, (list, tuple)) and len(line) >= 2:
+                        bbox = line[0]
+                        payload = line[1]
+                        if isinstance(payload, (list, tuple)) and len(payload) >= 2:
+                            text, confidence = payload[0], float(payload[1])
+                            texts.append({"text": str(text).strip(), "confidence": confidence, "bbox": bbox})
+                if texts:
+                    return texts
+
+        # Some versions return dict-like records from `predict`.
+        if isinstance(raw_result, list):
+            for item in raw_result:
+                if isinstance(item, dict):
+                    text = item.get("rec_text") or item.get("text")
+                    confidence = item.get("rec_score") or item.get("confidence")
+                    bbox = item.get("dt_polys") or item.get("bbox")
+                    if text is not None and confidence is not None:
+                        texts.append(
+                            {
+                                "text": str(text).strip(),
+                                "confidence": float(confidence),
+                                "bbox": bbox,
+                            }
+                        )
+
+        return texts
+
+    def extract_text(self, image: Any, enhance: bool = True) -> List[Dict[str, Any]]:
         """
         Extract text from an image.
 
@@ -148,43 +193,35 @@ def extract_text(self, image: Any, enhance: bool = True) -> List[Dict[str, Any]]
         Returns:
             List of text detections with bounding boxes and confidence
         """
-        # Convert to numpy array if needed
         if isinstance(image, str):
             if image.startswith(("http://", "https://")):
                 import requests
 
                 response = requests.get(image)
                 response.raise_for_status()
-                image = np.array(Image.open(np.io.BytesIO(response.content)))
+                image = np.array(Image.open(io.BytesIO(response.content)))
             else:
                 image = cv2.imread(image)
         elif isinstance(image, Image.Image):
             image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
-        # Preprocess if requested
+        if image is None:
+            return []
+
         if enhance:
             image = self.preprocessor.enhance_for_ocr(image)
 
-        # Run OCR
-        result = self.ocr.predict(image)
+        if hasattr(self.ocr, "ocr"):
+            try:
+                raw_result = self.ocr.ocr(image, cls=True)
+            except TypeError:
+                raw_result = self.ocr.ocr(image)
+        else:
+            raw_result = self.ocr.predict(image)
 
-        texts = []
-        if result and result[0]:
-            for line in result[0]:
-                bbox, (text, confidence) = line
-                texts.append(
-                    {
-                        "text": text.strip(),
-                        "confidence": confidence,
-                        "bbox": bbox,
-                    }
-                )
+        return self._normalize_ocr_result(raw_result)
 
-        return texts
-
-def extract_from_roi(
-        self, image: np.ndarray, bbox: Tuple[int, int, int, int], enhance: bool = True
-    ) -> List[Dict[str, Any]]:
+    def extract_from_roi(self, image: np.ndarray, bbox: Tuple[int, int, int, int], enhance: bool = True) -> List[Dict[str, Any]]:
         """
         Extract text from a specific region of interest.
 
@@ -199,22 +236,27 @@ def extract_from_roi(
         roi = self.preprocessor.extract_roi(image, bbox)
         return self.extract_text(roi, enhance=enhance)
 
-def parse_expiry_date(self, texts):
-    full_text = " ".join([t["text"] for t in texts])
-    for pattern in self.DATE_PATTERNS:
-        match = re.search(pattern, full_text, re.IGNORECASE)
-        if match:
-            date_str = match.group(1).replace("/", "-")
-            for fmt in self.DATE_FORMATS:
-                try:
-                    parsed = datetime.strptime(date_str, fmt)
-                    if parsed > datetime.now():
-                        return {"raw": date_str, "parsed": parsed.strftime("%Y-%m-%d"), "confidence": "high"}
-                except ValueError:
-                    continue
-    return None
+    def parse_expiry_date(self, texts: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Extract and normalize an expiry date from OCR text list."""
+        full_text = " ".join([t.get("text", "") for t in texts])
+        for pattern in self.DATE_PATTERNS:
+            match = re.search(pattern, full_text, re.IGNORECASE)
+            if match:
+                date_str = match.group(1).replace("/", "-")
+                for fmt in self.DATE_FORMATS:
+                    try:
+                        parsed = datetime.strptime(date_str, fmt)
+                        if parsed > datetime.now():
+                            return {
+                                "raw": date_str,
+                                "parsed": parsed.strftime("%Y-%m-%d"),
+                                "confidence": "high",
+                            }
+                    except ValueError:
+                        continue
+        return None
 
-def parse_product_code(self, texts: List[Dict[str, Any]]) -> Optional[str]:
+    def parse_product_code(self, texts: List[Dict[str, Any]]) -> Optional[str]:
         """
         Extract product code/SKU from text.
 
@@ -224,7 +266,7 @@ def parse_product_code(self, texts: List[Dict[str, Any]]) -> Optional[str]:
         Returns:
             Product code or None
         """
-        full_text = " ".join([t["text"] for t in texts])
+        full_text = " ".join([t.get("text", "") for t in texts])
 
         for pattern in self.PRODUCT_CODE_PATTERNS:
             match = re.search(pattern, full_text, re.IGNORECASE)
@@ -233,7 +275,7 @@ def parse_product_code(self, texts: List[Dict[str, Any]]) -> Optional[str]:
 
         return None
 
-def parse_quantity(self, texts: List[Dict[str, Any]]) -> Optional[int]:
+    def parse_quantity(self, texts: List[Dict[str, Any]]) -> Optional[int]:
         """
         Extract quantity from text.
 
@@ -243,7 +285,7 @@ def parse_quantity(self, texts: List[Dict[str, Any]]) -> Optional[int]:
         Returns:
             Quantity or None
         """
-        full_text = " ".join([t["text"] for t in texts])
+        full_text = " ".join([t.get("text", "") for t in texts])
 
         for pattern in self.QUANTITY_PATTERNS:
             match = re.search(pattern, full_text, re.IGNORECASE)
@@ -289,27 +331,23 @@ class OCRPipeline:
 
         start_time = time.time()
 
-        # Load image
         if isinstance(image, str):
             if image.startswith(("http://", "https://")):
                 import requests
 
                 response = requests.get(image)
                 response.raise_for_status()
-                image = np.array(Image.open(np.io.BytesIO(response.content)))
+                image = np.array(Image.open(io.BytesIO(response.content)))
             else:
                 image = cv2.imread(image)
         elif isinstance(image, Image.Image):
             image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
-        # Extract all text
         all_texts = self.extractor.extract_text(image, enhance=True)
 
-        # Filter by confidence
         confidence_threshold = self.config.get("confidence_threshold", 0.7)
         high_confidence_texts = [t for t in all_texts if t["confidence"] >= confidence_threshold]
 
-        # Parse specific fields
         expiry_date = self.extractor.parse_expiry_date(all_texts)
         product_code = self.extractor.parse_product_code(all_texts)
         quantity = self.extractor.parse_quantity(all_texts)
@@ -337,10 +375,7 @@ class OCRPipeline:
             Extracted text for the ROI
         """
         roi_texts = self.extractor.extract_from_roi(image, bbox)
-        return {
-            "texts": roi_texts,
-            "bbox": bbox,
-        }
+        return {"texts": roi_texts, "bbox": bbox}
 
 
 # Convenience function

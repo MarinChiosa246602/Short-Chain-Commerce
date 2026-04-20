@@ -11,6 +11,7 @@ This module chains together all components:
 
 import time
 import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -18,6 +19,11 @@ from uuid import uuid4
 
 import cv2
 import numpy as np
+
+# Ensure sibling packages under src are importable when this file is run directly.
+SRC_ROOT = Path(__file__).resolve().parents[1]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 from models.cv_pipeline import CVPipeline, ImagePreprocessor  # noqa: E402
 from models.ocr_pipeline import OCRPipeline, extract_text  # noqa: E402
@@ -292,7 +298,19 @@ class EndToEndPipeline:
 
             # Step 2: OCR Extraction (from enhanced image)
             enhanced_image = cv_result.get("enhanced_image", image)
-            ocr_result = extract_text(enhanced_image, self.config)
+            try:
+                ocr_result = self.ocr_pipeline.process(enhanced_image)
+            except Exception as ocr_error:
+                logger.warning(f"OCR failed, continuing with empty OCR fields: {ocr_error}")
+                ocr_result = {
+                    "all_texts": [],
+                    "high_confidence_texts": [],
+                    "expiry_date": None,
+                    "product_code": None,
+                    "quantity": None,
+                    "processing_time_ms": 0,
+                    "error": str(ocr_error),
+                }
 
             # Step 3: Parsing and Validation
             parsing_result = self.processor.process(
@@ -483,3 +501,7 @@ if __name__ == "__main__":
             destination=args.destination,
         )
         print(f"Batch complete: {result['successful']}/{result['total_images']} successful")
+
+    else:
+        print("No input provided. Use --image <path> for one image or --batch <dir> for batch mode.")
+        parser.print_help()
