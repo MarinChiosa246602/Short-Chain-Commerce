@@ -71,5 +71,6 @@ jobs:
 
     - name: Push Docker image
       run: |
-        docker tag short-chain-commerce:${{ github.sha }} ghcr.io/${{ github.repository }}:${{ github.sha }}
-        docker push ghcr.io/${{ github.repository }}:${{ github.sha }}
+        IMAGE="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]'):${{ github.sha }}"
+        docker tag short-chain-commerce:${{ github.sha }} "$IMAGE"
+        docker push "$IMAGE"
