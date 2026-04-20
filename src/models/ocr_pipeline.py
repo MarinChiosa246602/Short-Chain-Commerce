@@ -221,7 +221,9 @@ class TextExtractor:
 
         return self._normalize_ocr_result(raw_result)
 
-    def extract_from_roi(self, image: np.ndarray, bbox: Tuple[int, int, int, int], enhance: bool = True) -> List[Dict[str, Any]]:
+    def extract_from_roi(
+        self, image: np.ndarray, bbox: Tuple[int, int, int, int], enhance: bool = True
+    ) -> List[Dict[str, Any]]:
         """
         Extract text from a specific region of interest.
 

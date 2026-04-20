@@ -59,7 +59,7 @@ class ErrorRecovery:
             clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(16, 16))
             enhanced = clahe.apply(l)
             enhanced_lab = cv2.merge((enhanced, a, b))
-            variants.append(cv2.cvtColor(enhanced_lab , cv2.COLOR_LAB2BGR))
+            variants.append(cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR))
 
         if len(variants) < max_retries:
             # Denoised
