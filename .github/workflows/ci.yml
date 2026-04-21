@@ -67,7 +67,7 @@ jobs:
         docker build -t short-chain-commerce:${{ github.sha }} .
 
     - name: Log in to Container Registry
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
@@ -75,6 +75,10 @@ jobs:
 
     - name: Push Docker image
       run: |
-        IMAGE="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]'):${{ github.sha }}"
-        docker tag short-chain-commerce:${{ github.sha }} "$IMAGE"
-        docker push "$IMAGE"
+        IMAGE_BASE="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+        IMAGE_SHA="$IMAGE_BASE:${{ github.sha }}"
+        IMAGE_LATEST="$IMAGE_BASE:latest"
+        docker tag short-chain-commerce:${{ github.sha }} "$IMAGE_SHA"
+        docker tag short-chain-commerce:${{ github.sha }} "$IMAGE_LATEST"
+        docker push "$IMAGE_SHA"
+        docker push "$IMAGE_LATEST"
