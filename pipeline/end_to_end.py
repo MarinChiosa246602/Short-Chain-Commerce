@@ -350,17 +350,13 @@ class BatchProcessor:
                 total_quantity += qty or 0
 
                 name = (
-                    getattr(product, "product_name", None)
-                    if hasattr(product, "product_name")
-                    else product.get("product_name")
+                    getattr(product, "product_name", None) if hasattr(product, "product_name") else product.get("product_name")
                 )
                 if name:
                     product_types[name] = product_types.get(name, 0) + 1
 
                 expiry = (
-                    getattr(product, "expiry_date", None)
-                    if hasattr(product, "expiry_date")
-                    else product.get("expiry_date")
+                    getattr(product, "expiry_date", None) if hasattr(product, "expiry_date") else product.get("expiry_date")
                 )
                 if expiry:
                     if earliest_expiry is None or expiry < earliest_expiry:
@@ -377,6 +373,7 @@ class BatchProcessor:
 # ---------------------------------------------------------------------------
 # Convenience functions
 # ---------------------------------------------------------------------------
+
 
 def process_image(
     image_source: Any,

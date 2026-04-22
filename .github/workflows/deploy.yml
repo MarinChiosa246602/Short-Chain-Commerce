@@ -42,7 +42,7 @@ jobs:
       run: |
         pip install flake8 black
         black --check src/ pipeline/ 2>/dev/null || true
-        flake8 src/ --max-line-length=127 --ignore=E501,W503
+        flake8 src/ --max-line-length=127 --ignore=E501,W503,E203
 
     - name: Upload coverage
       uses: codecov/codecov-action@v4
