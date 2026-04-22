@@ -125,10 +125,7 @@ def check_rate_limit(client_ip: str) -> bool:
         rate_limit_store[client_ip] = []
 
     # Remove old requests outside window
-    rate_limit_store[client_ip] = [
-        t for t in rate_limit_store[client_ip]
-        if current_time - t < RATE_LIMIT_WINDOW_SECONDS
-    ]
+    rate_limit_store[client_ip] = [t for t in rate_limit_store[client_ip] if current_time - t < RATE_LIMIT_WINDOW_SECONDS]
 
     # Check if limit exceeded
     if len(rate_limit_store[client_ip]) >= RATE_LIMIT_REQUESTS:
@@ -216,6 +213,7 @@ def require_role(roles: list):
     Returns:
         Dependency function
     """
+
     async def role_checker(user: Dict = Depends(require_auth)):
         user_roles = user.get("roles", [])
         if not any(role in user_roles for role in roles):
@@ -224,6 +222,7 @@ def require_role(roles: list):
                 detail="Insufficient permissions",
             )
         return user
+
     return role_checker
 
 
@@ -243,8 +242,8 @@ def sanitize_input(value: str) -> str:
         return ""
 
     # Remove potentially dangerous characters
-    dangerous_chars = ['<', '>', '"', "'", ';', '(', ')']
+    dangerous_chars = ["<", ">", '"', "'", ";", "(", ")"]
     for char in dangerous_chars:
-        value = value.replace(char, '')
+        value = value.replace(char, "")
 
     return value.strip()[:255]  # Limit length

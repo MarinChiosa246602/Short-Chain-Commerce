@@ -14,7 +14,7 @@ from typing import List, Optional
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -59,6 +59,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
 # Middleware for performance monitoring
 @app.middleware("http")
 async def monitor_performance(request: Request, call_next):
@@ -72,6 +73,7 @@ async def monitor_performance(request: Request, call_next):
         api_duration.labels(endpoint=request.url.path).observe(duration)
 
     return response
+
 
 # Global pipeline instance (initialized on first request)
 _extraction_pipeline = None
@@ -111,6 +113,7 @@ metrics = {
     "total_processing_time_ms": 0,
     "requests_by_status": {},
 }
+
 
 # Prometheus metrics endpoint
 @app.get("/metrics")
@@ -369,9 +372,11 @@ async def detailed_health():
     return {
         "status": "healthy",
         "components": {
-            "cv_pipeline": "initialized" if hasattr(pipeline, 'cv_pipeline') and pipeline.cv_pipeline else "pending",
-            "ocr_pipeline": "initialized" if hasattr(pipeline, 'ocr_pipeline') and pipeline.ocr_pipeline else "pending",
-            "extraction_processor": "initialized" if hasattr(pipeline, 'extraction_processor') and pipeline.extraction_processor else "pending",
+            "cv_pipeline": "initialized" if hasattr(pipeline, "cv_pipeline") and pipeline.cv_pipeline else "pending",
+            "ocr_pipeline": "initialized" if hasattr(pipeline, "ocr_pipeline") and pipeline.ocr_pipeline else "pending",
+            "extraction_processor": (
+                "initialized" if hasattr(pipeline, "extraction_processor") and pipeline.extraction_processor else "pending"
+            ),
         },
         "metrics": get_metrics(),
         "timestamp": datetime.utcnow().isoformat(),
@@ -460,19 +465,21 @@ async def get_extractions(
         # Convert to response format
         results = []
         for ext in extractions:
-            results.append({
-                "extraction_id": ext.get("id"),
-                "status": ext.get("status"),
-                "timestamp": ext.get("timestamp"),
-                "processing_time_ms": ext.get("processing_time_ms"),
-                "extraction": {
-                    "products": ext.get("products", []),
-                    "metadata": {
-                        "source_farm": ext.get("source_farm"),
-                        "destination": ext.get("destination"),
+            results.append(
+                {
+                    "extraction_id": ext.get("id"),
+                    "status": ext.get("status"),
+                    "timestamp": ext.get("timestamp"),
+                    "processing_time_ms": ext.get("processing_time_ms"),
+                    "extraction": {
+                        "products": ext.get("products", []),
+                        "metadata": {
+                            "source_farm": ext.get("source_farm"),
+                            "destination": ext.get("destination"),
+                        },
                     },
-                },
-            })
+                }
+            )
 
         return {
             "results": results,

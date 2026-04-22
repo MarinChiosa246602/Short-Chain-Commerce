@@ -13,8 +13,8 @@ from pathlib import Path
 
 # Add src to path
 SRC_ROOT = Path(__file__).resolve().parent
-if str(SRC_ROOT.parent) not in __import__('sys').path:
-    __import__('sys').path.insert(0, str(SRC_ROOT.parent))
+if str(SRC_ROOT.parent) not in __import__("sys").path:
+    __import__("sys").path.insert(0, str(SRC_ROOT.parent))
 
 # Redis connection
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")

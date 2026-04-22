@@ -10,8 +10,8 @@ from celery.exceptions import MaxRetriesExceededError
 
 # Add src to path
 SRC_ROOT = Path(__file__).resolve().parent.parent
-if str(SRC_ROOT) not in __import__('sys').path:
-    __import__('sys').path.insert(0, str(SRC_ROOT))
+if str(SRC_ROOT) not in __import__("sys").path:
+    __import__("sys").path.insert(0, str(SRC_ROOT))
 
 from pipeline.end_to_end import BatchProcessor
 from database.db_manager import get_database_manager
