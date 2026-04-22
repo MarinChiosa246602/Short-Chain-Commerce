@@ -70,7 +70,7 @@ class OCRPreprocessor:
             Cropped ROI image
         """
         x1, y1, x2, y2 = bbox
-        return image[max(0, y1) : min(image.shape[0], y2), max(0, x1) : min(image.shape[1], x2)]
+        return image[max(0, y1):min(image.shape[0], y2), max(0, x1):min(image.shape[1], x2)]
 
     @staticmethod
     def rotate_for_ocr(image: np.ndarray, angle: float = 0) -> np.ndarray:

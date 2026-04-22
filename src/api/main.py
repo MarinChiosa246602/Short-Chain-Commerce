@@ -6,32 +6,18 @@ Full implementation with CV pipeline, OCR, and monitoring integration.
 
 import logging
 import os
-import sys
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import List, Optional
 
 import cv2
 import numpy as np
+from pipeline.end_to_end import EndToEndPipeline, BatchProcessor
+from database.db_manager import get_database_manager
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse, Response
-from fastapi.middleware.cors import CORSMiddleware
 
-# Add src to path for imports
-SRC_ROOT = Path(__file__).resolve().parent.parent
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
-
-from pipeline.end_to_end import EndToEndPipeline, BatchProcessor
-from database.db_manager import DatabaseManager, get_database_manager
-from monitoring.logging_utils import (
-    get_extraction_logger,
-    get_performance_tracker,
-    get_anomaly_detector,
-    setup_logging,
-)
-from models.schemas import ExtractionResponse  # noqa: E402
+from monitoring.logging_utils import setup_logging
 
 # Performance monitoring
 try:
@@ -44,7 +30,6 @@ try:
     api_duration = Histogram("api_request_duration_seconds", "API request duration", ["endpoint"], registry=registry)
 except ImportError:
     PROMETHEUS_AVAILABLE = False
-from monitoring.logging_utils import setup_logging
 
 # Initialize logging
 setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -450,8 +435,6 @@ async def get_extractions(
     Returns mock data if database is not configured.
     """
     try:
-        from database.db_manager import get_database_manager
-
         db = get_database_manager()
         db.initialize()
 
@@ -503,8 +486,6 @@ async def get_extractions(
 async def get_extraction(extraction_id: str):
     """Get a specific extraction by ID."""
     try:
-        from database.db_manager import get_database_manager
-
         db = get_database_manager()
         db.initialize()
 
@@ -543,7 +524,6 @@ async def get_analytics_summary(
     Returns aggregated statistics for the specified number of days.
     """
     try:
-        from database.db_manager import get_database_manager
         from datetime import datetime, timedelta
 
         db = get_database_manager()

@@ -2,16 +2,10 @@
 Celery tasks for background processing.
 """
 
-import os
 import logging
-from pathlib import Path
+
 from celery import shared_task
 from celery.exceptions import MaxRetriesExceededError
-
-# Add src to path
-SRC_ROOT = Path(__file__).resolve().parent.parent
-if str(SRC_ROOT) not in __import__("sys").path:
-    __import__("sys").path.insert(0, str(SRC_ROOT))
 
 from pipeline.end_to_end import BatchProcessor
 from database.db_manager import get_database_manager
@@ -131,12 +125,10 @@ def cleanup_old_extractions(days: int = 30):
         days: Remove records older than this many days
     """
     from datetime import datetime, timedelta
-    from database.db_manager import get_database_manager
 
     cutoff_date = datetime.utcnow() - timedelta(days=days)
 
     try:
-        db = get_database_manager()
         # Implementation depends on database backend
         logger.info(f"Cleanup completed: removed records older than {cutoff_date}")
         return {"cleaned_until": cutoff_date.isoformat()}

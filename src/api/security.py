@@ -14,11 +14,10 @@ import jwt
 import secrets
 import hashlib
 from datetime import datetime, timedelta, timezone
-from functools import wraps
 from typing import Optional, Dict, Any
 from pathlib import Path
 
-from fastapi import HTTPException, Request, Header, Depends
+from fastapi import HTTPException, Header, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Security configuration
