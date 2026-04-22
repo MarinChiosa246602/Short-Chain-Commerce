@@ -13,6 +13,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./src:/app/src
+      - ./pipeline:/app/pipeline
       - ./data:/app/data
     depends_on:
       - db
@@ -53,6 +54,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./src:/app/src
+      - ./pipeline:/app/pipeline
       - ./data:/app/data
     depends_on:
       - db

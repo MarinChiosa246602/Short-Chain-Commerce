@@ -9,13 +9,20 @@ This module orchestrates the full pipeline:
 - Error recovery and batch processing
 """
 
+import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import cv2
 import numpy as np
+
+# Add src to path for imports
+SRC_ROOT = Path(__file__).resolve().parent.parent / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 from models.cv_pipeline import CVPipeline, ImagePreprocessor
 from models.ocr_pipeline import OCRPipeline

@@ -1,0 +1,23 @@
+# Performance optimization dependencies
+
+# Caching
+redis>=4.6.0
+cachetools>=5.3.0
+
+# Monitoring
+prometheus-client>=0.17.0
+sentry-sdk[fastapi]>=1.30.0
+
+# Performance profiling
+py-spy>=0.3.14
+memory-profiler>=0.61.0
+
+# Connection pooling
+aioredis>=2.0.0
+asyncpg>=0.28.0
+
+# Compression
+brotli>=1.1.0
+
+# Background tasks
+celery[redis]>=5.3.0

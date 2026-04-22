@@ -9,10 +9,32 @@ Provides:
 
 import json
 import sqlite3
+import functools
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+# Simple in-memory cache for frequent queries
+_cache: Dict[str, Any] = {}
+_CACHE_TTL_SECONDS = 300
+
+
+def cached(ttl: int = 300):
+    """Simple decorator for caching function results."""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            cache_key = f"{func.__name__}:{args}:{kwargs}"
+            if cache_key in _cache:
+                result, timestamp = _cache[cache_key]
+                if datetime.now().timestamp() - timestamp < ttl:
+                    return result
+            result = func(*args, **kwargs)
+            _cache[cache_key] = (result, datetime.now().timestamp())
+            return result
+        return wrapper
+    return decorator
 
 
 class DatabaseManager:

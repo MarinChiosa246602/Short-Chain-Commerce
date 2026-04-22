@@ -73,3 +73,18 @@ Thumbs.db
 
 # DVC
 .dvc/cache
+
+# YOLO runs
+runs/
+
+# Test data
+data/test_*.db
+data/test_report.json
+
+# Coverage
+coverage.xml
+htmlcov/
+
+# Monitoring
+logs/*
+!logs/.gitkeep

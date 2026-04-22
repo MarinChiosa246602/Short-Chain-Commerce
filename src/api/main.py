@@ -5,6 +5,7 @@ Full implementation with CV pipeline, OCR, and monitoring integration.
 """
 
 import logging
+import os
 import sys
 import time
 from datetime import datetime
@@ -14,17 +15,42 @@ from typing import List, Optional
 import cv2
 import numpy as np
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
 
 # Add src to path for imports
-SRC_ROOT = Path(__file__).resolve().parent
+SRC_ROOT = Path(__file__).resolve().parent.parent
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from pipeline import EndToEndPipeline, BatchProcessor  # noqa: E402
+from pipeline.end_to_end import EndToEndPipeline, BatchProcessor
+from database.db_manager import DatabaseManager, get_database_manager
+from monitoring.logging_utils import (
+    get_extraction_logger,
+    get_performance_tracker,
+    get_anomaly_detector,
+    setup_logging,
+)
+from models.schemas import ExtractionResponse  # noqa: E402
+
+# Performance monitoring
+try:
+    from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_client import CollectorRegistry
+
+    PROMETHEUS_AVAILABLE = True
+    registry = CollectorRegistry()
+    api_requests = Counter("api_requests_total", "Total API requests", ["endpoint", "status"], registry=registry)
+    api_duration = Histogram("api_request_duration_seconds", "API request duration", ["endpoint"], registry=registry)
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+from monitoring.logging_utils import setup_logging
+
+# Initialize logging
+setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
@@ -32,6 +58,20 @@ app = FastAPI(
     description="Automatic extraction of logistics data from visual inputs for short food supply chain management",
     version="1.0.0",
 )
+
+# Middleware for performance monitoring
+@app.middleware("http")
+async def monitor_performance(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    duration = time.time() - start_time
+
+    # Record metrics
+    if PROMETHEUS_AVAILABLE:
+        api_requests.labels(endpoint=request.url.path, status=str(response.status_code)).inc()
+        api_duration.labels(endpoint=request.url.path).observe(duration)
+
+    return response
 
 # Global pipeline instance (initialized on first request)
 _extraction_pipeline = None
@@ -72,6 +112,14 @@ metrics = {
     "requests_by_status": {},
 }
 
+# Prometheus metrics endpoint
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Prometheus-compatible metrics endpoint."""
+    if PROMETHEUS_AVAILABLE:
+        return Response(content=generate_latest(registry), media_type=CONTENT_TYPE_LATEST)
+    return Response(content="Prometheus not available", status_code=503)
+
 
 def update_metrics(status: str, processing_time_ms: float):
     """Update API metrics."""
@@ -106,7 +154,7 @@ async def health_check():
 
 
 @app.get("/api/v1/metrics")
-async def get_metrics():
+def get_metrics():
     """Get API performance metrics."""
     avg_time = metrics["total_processing_time_ms"] / metrics["total_requests"] if metrics["total_requests"] > 0 else 0
     return {
@@ -284,7 +332,7 @@ async def extract_batch(
 
         # Process batch
         batch_result = processor.process_batch(
-            image_paths=images,  # Pass image arrays directly
+            image_sources=images,
             source_farm=source_farm,
             destination=destination,
         )
@@ -321,11 +369,11 @@ async def detailed_health():
     return {
         "status": "healthy",
         "components": {
-            "cv_pipeline": "initialized" if pipeline.cv_pipeline else "pending",
-            "ocr_pipeline": "initialized" if pipeline.ocr_pipeline else "pending",
-            "extraction_processor": "initialized" if pipeline.processor else "pending",
+            "cv_pipeline": "initialized" if hasattr(pipeline, 'cv_pipeline') and pipeline.cv_pipeline else "pending",
+            "ocr_pipeline": "initialized" if hasattr(pipeline, 'ocr_pipeline') and pipeline.ocr_pipeline else "pending",
+            "extraction_processor": "initialized" if hasattr(pipeline, 'extraction_processor') and pipeline.extraction_processor else "pending",
         },
-        "metrics": await get_metrics(),
+        "metrics": get_metrics(),
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -383,6 +431,144 @@ async def get_schemas():
             "anomalies": "array of detected anomalies",
         },
     }
+
+
+# Database integration endpoint (optional - requires database configuration)
+@app.get("/api/v1/extractions")
+async def get_extractions(
+    limit: int = 50,
+    offset: int = 0,
+    status: Optional[str] = None,
+):
+    """
+    Get extraction history from database.
+    Returns mock data if database is not configured.
+    """
+    try:
+        from database.db_manager import get_database_manager
+
+        db = get_database_manager()
+        db.initialize()
+
+        # Query extractions from database
+        extractions = db.query_extractions(
+            status=status if status and status != "all" else None,
+            limit=limit,
+            offset=offset,
+        )
+
+        # Convert to response format
+        results = []
+        for ext in extractions:
+            results.append({
+                "extraction_id": ext.get("id"),
+                "status": ext.get("status"),
+                "timestamp": ext.get("timestamp"),
+                "processing_time_ms": ext.get("processing_time_ms"),
+                "extraction": {
+                    "products": ext.get("products", []),
+                    "metadata": {
+                        "source_farm": ext.get("source_farm"),
+                        "destination": ext.get("destination"),
+                    },
+                },
+            })
+
+        return {
+            "results": results,
+            "total": len(results),
+            "limit": limit,
+            "offset": offset,
+        }
+
+    except Exception as e:
+        # Return empty results if database not available
+        logger.warning(f"Database query failed: {e}")
+        return {
+            "results": [],
+            "total": 0,
+            "limit": limit,
+            "offset": offset,
+        }
+
+
+@app.get("/api/v1/extractions/{extraction_id}")
+async def get_extraction(extraction_id: str):
+    """Get a specific extraction by ID."""
+    try:
+        from database.db_manager import get_database_manager
+
+        db = get_database_manager()
+        db.initialize()
+
+        extraction = db.get_extraction(extraction_id)
+
+        if extraction:
+            return {
+                "extraction_id": extraction.get("id"),
+                "status": extraction.get("status"),
+                "timestamp": extraction.get("timestamp"),
+                "processing_time_ms": extraction.get("processing_time_ms"),
+                "extraction": {
+                    "products": extraction.get("products", []),
+                    "metadata": {
+                        "source_farm": extraction.get("source_farm"),
+                        "destination": extraction.get("destination"),
+                    },
+                },
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Extraction not found")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get extraction: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/analytics/summary")
+async def get_analytics_summary(
+    days: int = 7,
+):
+    """
+    Get analytics summary for the dashboard.
+    Returns aggregated statistics for the specified number of days.
+    """
+    try:
+        from database.db_manager import get_database_manager
+        from datetime import datetime, timedelta
+
+        db = get_database_manager()
+        db.initialize()
+
+        start_date = datetime.utcnow() - timedelta(days=days)
+        stats = db.get_statistics(start_date=start_date)
+
+        return {
+            "period_days": days,
+            "total_extractions": stats.get("total", 0),
+            "successful": stats.get("successful", 0),
+            "partial": stats.get("partial", 0),
+            "failed": stats.get("failed", 0),
+            "avg_processing_time_ms": stats.get("avg_processing_time_ms", 0),
+            "period_start": stats.get("first_extraction"),
+            "period_end": stats.get("last_extraction"),
+        }
+
+    except Exception as e:
+        logger.warning(f"Analytics query failed: {e}")
+        # Return default values
+        return {
+            "period_days": days,
+            "total_extractions": 0,
+            "successful": 0,
+            "partial": 0,
+            "failed": 0,
+            "avg_processing_time_ms": 0,
+            "period_start": None,
+            "period_end": None,
+        }
 
 
 if __name__ == "__main__":
