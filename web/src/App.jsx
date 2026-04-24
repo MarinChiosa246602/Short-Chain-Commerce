@@ -3,6 +3,11 @@ import Dashboard from './components/Dashboard'
 import Extraction from './components/Extraction'
 import History from './components/History'
 import Settings from './components/Settings'
+import CameraDashboard from './components/CameraDashboard'
+import ProductDashboard from './components/ProductDashboard'
+import ExpirationAlerts from './components/ExpirationAlerts'
+import RouteOptimizer from './components/RouteOptimizer'
+import AnalyticsDashboard from './components/AnalyticsDashboard'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import { ThemeProvider } from './context/ThemeContext'
@@ -16,6 +21,16 @@ function App() {
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard />
+      case 'camera':
+        return <CameraDashboard />
+      case 'products':
+        return <ProductDashboard />
+      case 'alerts':
+        return <ExpirationAlerts />
+      case 'routes':
+        return <RouteOptimizer />
+      case 'analytics':
+        return <AnalyticsDashboard />
       case 'extraction':
         return <Extraction />
       case 'history':

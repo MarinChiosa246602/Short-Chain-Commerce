@@ -1,13 +1,17 @@
 import React from 'react'
-import { LayoutDashboard, Upload, History, Settings, FileText, BarChart3 } from 'lucide-react'
+import { LayoutDashboard, Upload, History, Settings, FileText, BarChart3, Camera, Package, Bell, Truck, TrendingUp } from 'lucide-react'
 
 function Sidebar({ currentPage, setCurrentPage, isOpen }) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'camera', label: 'Camera Scanner', icon: Camera },
+    { id: 'products', label: 'Product Inventory', icon: Package },
+    { id: 'alerts', label: 'Expiration Alerts', icon: Bell },
+    { id: 'routes', label: 'Route Optimization', icon: Truck },
+    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     { id: 'extraction', label: 'New Extraction', icon: Upload },
     { id: 'history', label: 'History', icon: History },
     { id: 'reports', label: 'Reports', icon: FileText },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ]
 

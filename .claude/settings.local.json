@@ -37,7 +37,9 @@
       "Bash(mkdir -p models pipeline utils)",
       "Bash(touch models/__init__.py pipeline/__init__.py utils/__init__.py)",
       "Bash(dir *)",
-      "Bash(type NUL)"
+      "Bash(type NUL)",
+      "Bash(npm run *)",
+      "Bash(npm install *)"
     ]
   }
 }
