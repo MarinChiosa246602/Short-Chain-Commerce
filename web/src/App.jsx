@@ -8,6 +8,7 @@ import ProductDashboard from './components/ProductDashboard'
 import ExpirationAlerts from './components/ExpirationAlerts'
 import RouteOptimizer from './components/RouteOptimizer'
 import AnalyticsDashboard from './components/AnalyticsDashboard'
+import Reports from './components/Reports'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import { ThemeProvider } from './context/ThemeContext'
@@ -31,6 +32,8 @@ function App() {
         return <RouteOptimizer />
       case 'analytics':
         return <AnalyticsDashboard />
+      case 'reports':
+        return <Reports />
       case 'extraction':
         return <Extraction />
       case 'history':

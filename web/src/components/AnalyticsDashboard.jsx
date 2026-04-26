@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { BarChart, LineChart, PieChart, TrendingUp, TrendingDown, Package, AlertTriangle, Calendar, Users, DollarSign, Truck } from 'lucide-react'
+import { TrendingUp, TrendingDown, Package, AlertTriangle, Calendar, DollarSign, Truck, Activity } from 'lucide-react'
 import api from '../services/api'
 
 /**
