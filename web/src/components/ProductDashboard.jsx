@@ -4,7 +4,7 @@ import {
   AlertTriangle, CheckCircle, Clock, Truck, MapPin, Eye,
   ChevronDown, ChevronUp, RefreshCw, FileSpreadsheet, FileText, Printer
 } from 'lucide-react'
-import api from '../services/api'
+import api, { getInventory } from '../services/api'
 
 function ProductDashboard() {
   const [products, setProducts] = useState([])
@@ -35,26 +35,11 @@ function ProductDashboard() {
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true)
-      // Get all extractions from the API
-      const response = await api.getRecentExtractions(100)
+      // Use the new inventory API which returns pre-aggregated data
+      const response = await getInventory()
 
-      if (response.results && response.results.length > 0) {
-        // Flatten products from all extractions
-        const allProducts = []
-        response.results.forEach(extraction => {
-          if (extraction.data && extraction.data.products) {
-            extraction.data.products.forEach(product => {
-              allProducts.push({
-                ...product,
-                extractionId: extraction.id,
-                extractionTimestamp: extraction.timestamp,
-                sourceFarm: extraction.data.metadata?.source_farm,
-                destination: extraction.data.metadata?.destination
-              })
-            })
-          }
-        })
-        setProducts(allProducts)
+      if (response.products && response.products.length > 0) {
+        setProducts(response.products)
       } else {
         // Mock data for demonstration
         setProducts(getMockProducts())

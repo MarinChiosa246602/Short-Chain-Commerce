@@ -32,7 +32,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY src/ ./src/
 COPY pipeline/ ./pipeline/
-COPY tests/ ./tests/
 COPY scripts/ ./scripts/
 
 # Create necessary directories

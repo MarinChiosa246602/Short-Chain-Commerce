@@ -9,15 +9,19 @@ import os
 import time
 from datetime import datetime
 from typing import List, Optional
+import hashlib
+from uuid import uuid4
 
 import cv2
 import numpy as np
 from pipeline.end_to_end import EndToEndPipeline, BatchProcessor
 from database.db_manager import get_database_manager
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends
 from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel
 
 from monitoring.logging_utils import setup_logging
+from .security import require_auth, check_rate_limit, generate_jwt_token
 
 # Performance monitoring
 try:
@@ -33,10 +37,14 @@ except ImportError:
 
 # Initialize logging
 setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
-
-# Configure logging
-setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
+
+# Check for weak default passwords at startup
+import sys
+if os.getenv("ADMIN_PASSWORD") is None:
+    logger.warning("WARNING: ADMIN_PASSWORD environment variable is not set. Set it before deploying to production.")
+if os.getenv("FARMER_PASSWORD") is None:
+    logger.warning("WARNING: FARMER_PASSWORD environment variable is not set. Set it before deploying to production.")
 
 app = FastAPI(
     title="Short Chain Commerce - Logistics Data Extraction API",
@@ -142,7 +150,7 @@ async def health_check():
 
 
 @app.get("/api/v1/metrics")
-def get_metrics():
+def get_metrics(_user: dict = Depends(require_auth)):
     """Get API performance metrics."""
     avg_time = metrics["total_processing_time_ms"] / metrics["total_requests"] if metrics["total_requests"] > 0 else 0
     return {
@@ -153,6 +161,60 @@ def get_metrics():
         "avg_processing_time_ms": avg_time,
         "requests_by_status": metrics["requests_by_status"],
     }
+
+
+# Pydantic models for login
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+# Login endpoint with strict rate limiting (5 attempts per minute)
+login_attempts: dict = {}
+
+
+@app.post("/api/v1/auth/token")
+async def login_token(request: LoginRequest):
+    """
+    Login endpoint with rate limiting (5 attempts per minute).
+    Returns a JWT token for authenticated requests.
+    """
+    client_ip = request.client.host if hasattr(request, "client") else "unknown"
+
+    # Stricter rate limit: 5 attempts per minute
+    current_time = datetime.now().timestamp()
+    if client_ip not in login_attempts:
+        login_attempts[client_ip] = []
+
+    # Remove old attempts outside the 60-second window
+    login_attempts[client_ip] = [t for t in login_attempts[client_ip] if current_time - t < 60]
+
+    # Check if limit exceeded
+    if len(login_attempts[client_ip]) >= 5:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Please try again in 60 seconds.",
+        )
+
+    # Add current attempt
+    login_attempts[client_ip].append(current_time)
+
+    # Simple demo authentication (in production, use proper password hashing)
+    admin_password = os.getenv("ADMIN_PASSWORD")
+    farmer_password = os.getenv("FARMER_PASSWORD")
+
+    if not admin_password or not farmer_password:
+        logger.warning("ADMIN_PASSWORD or FARMER_PASSWORD not set in environment variables")
+        raise HTTPException(status_code=500, detail="Server configuration error")
+
+    if request.username == "admin" and request.password == admin_password:
+        token = generate_jwt_token("admin", roles=["admin", "user"])
+        return {"access_token": token, "token_type": "bearer", "username": "admin"}
+    elif request.username == "farmer" and request.password == farmer_password:
+        token = generate_jwt_token("farmer", roles=["farmer", "user"])
+        return {"access_token": token, "token_type": "bearer", "username": "farmer"}
+
+    raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
 @app.post("/api/v1/extract")
@@ -210,6 +272,37 @@ async def extract_data(
         # Build response
         extraction = result.get("extraction")
         if extraction:
+            # Save extraction to database
+            try:
+                db = get_database_manager()
+                db.initialize()
+                db.save_extraction(
+                    extraction_id=str(uuid4()),
+                    image_id=str(extraction.image_id),
+                    timestamp=extraction.timestamp,
+                    source_farm=extraction.metadata.source_farm if extraction.metadata else source_farm,
+                    destination=extraction.metadata.destination if extraction.metadata else destination,
+                    status=result.get("status", "error"),
+                    is_valid=result.get("is_valid", False),
+                    processing_time_ms=processing_time,
+                    products=[
+                        {
+                            "product_id": p.product_id,
+                            "product_name": p.product_name,
+                            "quantity": p.quantity,
+                            "unit": p.unit.value,
+                            "expiry_date": p.expiry_date,
+                            "storage_location": p.storage_location,
+                            "condition": p.condition.value if p.condition else None,
+                        }
+                        for p in extraction.products
+                    ],
+                    missing_fields=extraction.missing_fields,
+                    low_confidence_fields=extraction.low_confidence_fields,
+                )
+            except Exception as db_err:
+                logger.warning(f"Failed to save extraction to DB: {db_err}")
+
             if result.get("is_valid"):
                 return JSONResponse(
                     content={
@@ -324,6 +417,41 @@ async def extract_batch(
             source_farm=source_farm,
             destination=destination,
         )
+
+        # Save successful extractions to database
+        try:
+            db = get_database_manager()
+            db.initialize()
+            results = batch_result.get("results", [])
+            for result in results:
+                extraction = result.get("extraction")
+                if extraction and extraction.get("status") != "error":
+                    db.save_extraction(
+                        extraction_id=str(uuid4()),
+                        image_id=str(extraction.get("image_id")),
+                        timestamp=extraction.get("timestamp"),
+                        source_farm=extraction.get("metadata", {}).get("source_farm") or source_farm,
+                        destination=extraction.get("metadata", {}).get("destination") or destination,
+                        status=result.get("status", "error"),
+                        is_valid=result.get("is_valid", False),
+                        processing_time_ms=result.get("processing_time_ms", 0),
+                        products=[
+                            {
+                                "product_id": p.get("product_id"),
+                                "product_name": p.get("product_name"),
+                                "quantity": p.get("quantity"),
+                                "unit": p.get("unit"),
+                                "expiry_date": p.get("expiry_date"),
+                                "storage_location": p.get("storage_location"),
+                                "condition": p.get("condition"),
+                            }
+                            for p in extraction.get("products", [])
+                        ],
+                        missing_fields=extraction.get("missing_fields", []),
+                        low_confidence_fields=extraction.get("low_confidence_fields", []),
+                    )
+        except Exception as db_err:
+            logger.warning(f"Failed to save batch extractions to DB: {db_err}")
 
         processing_time = (time.time() - start_time) * 1000
 
@@ -556,6 +684,178 @@ async def get_analytics_summary(
             "period_start": None,
             "period_end": None,
         }
+
+
+# Pydantic model for report generation
+class ReportRequest(BaseModel):
+    report_type: str
+    date_range: str
+
+
+# 2.1 Inventory endpoint
+@app.get("/api/v1/inventory")
+async def get_inventory(_user: dict = Depends(require_auth)):
+    """
+    Get aggregated product inventory.
+    Returns totals grouped by product.
+    """
+    try:
+        db = get_database_manager()
+        db.initialize()
+        inventory = db.get_product_inventory()
+        return {"products": inventory, "total": len(inventory)}
+    except Exception as e:
+        logger.error(f"Inventory query failed: {e}")
+        return {"products": [], "total": 0}
+
+
+# 2.2 Expiring products endpoint
+@app.get("/api/v1/alerts/expiring")
+async def get_expiring_products(days: int = 14, _user: dict = Depends(require_auth)):
+    """
+    Get products expiring within specified days.
+    Returns products grouped by urgency level.
+    """
+    try:
+        db = get_database_manager()
+        db.initialize()
+        expiring = db.get_expiring_products(days=days)
+
+        now = datetime.utcnow()
+        expired = []
+        critical = []
+        warning = []
+        info = []
+
+        for product in expiring:
+            try:
+                expiry = datetime.fromisoformat(product["expiry_date"]) if product.get("expiry_date") else None
+                if expiry:
+                    days_until = (expiry - now).days
+                    if days_until < 0:
+                        expired.append(product)
+                    elif days_until <= 2:
+                        critical.append(product)
+                    elif days_until <= 7:
+                        warning.append(product)
+                    else:
+                        info.append(product)
+                else:
+                    info.append(product)
+            except Exception:
+                info.append(product)
+
+        return {
+            "expired": expired,
+            "critical": critical,
+            "warning": warning,
+            "info": info,
+            "total": len(expiring),
+        }
+    except Exception as e:
+        logger.error(f"Expiring products query failed: {e}")
+        return {"expired": [], "critical": [], "warning": [], "info": [], "total": 0}
+
+
+# 2.3 Deliveries endpoint
+@app.get("/api/v1/deliveries")
+async def get_deliveries(_user: dict = Depends(require_auth)):
+    """
+    Get pending deliveries from recent extractions.
+    Returns deliveries derived from successful extractions in the last 7 days.
+    """
+    try:
+        db = get_database_manager()
+        db.initialize()
+        from datetime import timedelta
+
+        start_date = datetime.utcnow() - timedelta(days=7)
+        extractions = db.query_extractions(status="success", start_date=start_date, limit=100)
+
+        deliveries = []
+        for ext in extractions:
+            # Mock location using deterministic hash (MD5 is stable across sessions)
+            dest_str = ext.get("destination", "") or ""
+            dest_hash = int(hashlib.md5(dest_str.encode()).hexdigest(), 16) % 10000
+            delivery = {
+                "id": ext.get("id"),
+                "destination": ext.get("destination"),
+                "source_farm": ext.get("source_farm"),
+                "products": ext.get("products", []),
+                "timestamp": ext.get("timestamp"),
+                "location": {
+                    "lat": 40.0 + (dest_hash % 100) / 100.0,
+                    "lng": -100.0 + (dest_hash % 50) / 50.0,
+                },
+            }
+            deliveries.append(delivery)
+
+        return {"deliveries": deliveries, "total": len(deliveries)}
+    except Exception as e:
+        logger.error(f"Deliveries query failed: {e}")
+        return {"deliveries": [], "total": 0}
+
+
+# 2.4 Report generation endpoint
+@app.post("/api/v1/reports/generate")
+async def generate_report(body: ReportRequest, _user: dict = Depends(require_auth)):
+    """
+    Generate a report based on type and date range.
+    Report types: inventory, expiration, delivery, quality
+    Date ranges: 7d, 30d, 90d
+    """
+    try:
+        db = get_database_manager()
+        db.initialize()
+
+        # Parse date range
+        days_map = {"7d": 7, "30d": 30, "90d": 90}
+        days = days_map.get(body.date_range, 7)
+        start_date = datetime.utcnow() - timedelta(days=days)
+
+        report_data = {"title": f"{body.report_type.title()} Report", "period": body.date_range, "generated_at": datetime.utcnow().isoformat()}
+
+        if body.report_type == "inventory":
+            inventory = db.get_product_inventory()
+            report_data["summary"] = {"total_products": len(inventory)}
+            report_data["data"] = inventory
+        elif body.report_type == "expiration":
+            expiring = db.get_expiring_products(days=days)
+            report_data["summary"] = {"expiring_products": len(expiring)}
+            report_data["data"] = expiring
+        elif body.report_type == "delivery":
+            extractions = db.query_extractions(status="success", start_date=start_date, limit=100)
+            report_data["summary"] = {"total_deliveries": len(extractions)}
+            report_data["data"] = extractions
+        elif body.report_type == "quality":
+            stats = db.get_statistics(start_date=start_date)
+            report_data["summary"] = stats
+            report_data["data"] = []
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown report type: {body.report_type}")
+
+        return report_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Report generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# 2.5 Anomalies endpoint
+@app.get("/api/v1/anomalies")
+async def get_anomalies(limit: int = 50, _user: dict = Depends(require_auth)):
+    """
+    Get recent anomalies.
+    """
+    try:
+        db = get_database_manager()
+        db.initialize()
+        anomalies = db.get_recent_anomalies(limit=limit)
+        return {"anomalies": anomalies, "total": len(anomalies)}
+    except Exception as e:
+        logger.error(f"Anomalies query failed: {e}")
+        return {"anomalies": [], "total": 0}
 
 
 if __name__ == "__main__":

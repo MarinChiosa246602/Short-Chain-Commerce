@@ -74,6 +74,43 @@ export const getSchemas = async () => {
   return response.data
 }
 
+// Inventory API
+export const getInventory = async () => {
+  const response = await api.get('/api/v1/inventory')
+  return response.data
+}
+
+// Expiration Alerts API
+export const getExpiringProducts = async (days = 14) => {
+  const response = await api.get('/api/v1/alerts/expiring', {
+    params: { days },
+  })
+  return response.data
+}
+
+// Deliveries API
+export const getDeliveries = async () => {
+  const response = await api.get('/api/v1/deliveries')
+  return response.data
+}
+
+// Reports API
+export const generateReport = async (reportType, dateRange) => {
+  const response = await api.post('/api/v1/reports/generate', {
+    report_type: reportType,
+    date_range: dateRange,
+  })
+  return response.data
+}
+
+// Anomalies API
+export const getAnomalies = async (limit = 50) => {
+  const response = await api.get('/api/v1/anomalies', {
+    params: { limit },
+  })
+  return response.data
+}
+
 export default {
   extractData,
   extractBatch,
@@ -83,4 +120,9 @@ export default {
   getRecentExtractions,
   getExtractionById,
   getSchemas,
+  getInventory,
+  getExpiringProducts,
+  getDeliveries,
+  generateReport,
+  getAnomalies,
 }

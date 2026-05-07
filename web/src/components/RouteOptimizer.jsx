@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Truck, MapPin, Calendar, Clock, AlertTriangle, CheckCircle, Navigation, RefreshCw, Download, Play, Pause } from 'lucide-react'
-import api from '../services/api'
+import api, { getDeliveries } from '../services/api'
 
 /**
  * Route Optimizer Component
@@ -32,9 +32,20 @@ function RouteOptimizer() {
     try {
       setLoading(true)
 
-      // Simulate API call - in production, fetch from backend
-      const mockDeliveries = getMockDeliveries()
-      setDeliveries(mockDeliveries)
+      // Use the new deliveries API
+      try {
+        const response = await getDeliveries()
+
+        if (response.deliveries && response.deliveries.length > 0) {
+          setDeliveries(response.deliveries)
+        } else {
+          setDeliveries(getMockDeliveries())
+        }
+      } catch {
+        // Fallback to mock data
+        setDeliveries(getMockDeliveries())
+      }
+
       setLoading(false)
     } catch (err) {
       console.error('Failed to fetch deliveries:', err)

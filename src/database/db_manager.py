@@ -11,7 +11,7 @@ import json
 import sqlite3
 import functools
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -163,6 +163,17 @@ class DatabaseManager:
                     severity TEXT,
                     details TEXT,
                     detected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (extraction_id) REFERENCES extractions(id)
+                )
+            """
+            )
+
+            # Extraction metadata table
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS extraction_metadata (
+                    extraction_id TEXT PRIMARY KEY,
+                    metadata TEXT NOT NULL DEFAULT '{}',
                     FOREIGN KEY (extraction_id) REFERENCES extractions(id)
                 )
             """
@@ -333,7 +344,10 @@ class DatabaseManager:
             offset: Result offset for pagination
 
         Returns:
-            List of extraction records
+            List of extraction records with consistent format:
+            - id, status, timestamp, processing_time_ms
+            - data.products: list of product dicts
+            - data.metadata: extraction metadata
         """
         query = "SELECT * FROM extractions WHERE 1=1"
         params = []
@@ -363,7 +377,41 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(query, params)
-            return [dict(row) for row in cursor.fetchall()]
+            extractions = [dict(row) for row in cursor.fetchall()]
+
+            # Attach products and metadata to each extraction in consistent format
+            for extraction in extractions:
+                # Ensure timestamp is ISO string
+                if extraction.get("timestamp"):
+                    ts = extraction["timestamp"]
+                    if isinstance(ts, datetime):
+                        extraction["timestamp"] = ts.isoformat()
+
+                # Get products
+                cursor.execute(
+                    "SELECT * FROM products WHERE extraction_id = ?",
+                    (extraction["id"],)
+                )
+                products = [dict(p) for p in cursor.fetchall()]
+
+                # Get metadata
+                cursor.execute(
+                    "SELECT metadata FROM extraction_metadata WHERE extraction_id = ?",
+                    (extraction["id"],)
+                )
+                meta_row = cursor.fetchone()
+                metadata = dict(meta_row)["metadata"] if meta_row else {}
+
+                # Format response with data wrapper
+                extraction["products"] = products
+                extraction["data"] = {
+                    "products": products,
+                    "metadata": metadata,
+                    "source_farm": extraction.get("source_farm"),
+                    "destination": extraction.get("destination"),
+                }
+
+            return extractions
 
     def get_statistics(
         self,
@@ -471,6 +519,31 @@ class DatabaseManager:
                 anomaly["details"] = json.loads(anomaly["details"] or "{}")
                 anomalies.append(anomaly)
             return anomalies
+
+    def get_expiring_products(self, days: int = 14) -> List[Dict[str, Any]]:
+        """
+        Get products expiring within specified days.
+
+        Args:
+            days: Number of days to check for expiring products
+
+        Returns:
+            List of products with urgency categorization
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT p.*, e.source_farm, e.destination, e.timestamp
+                FROM products p
+                JOIN extractions e ON p.extraction_id = e.id
+                WHERE p.expiry_date IS NOT NULL
+                  AND p.expiry_date <= date('now', '+' || ? || ' days')
+                ORDER BY p.expiry_date ASC
+            """,
+                (days,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
 
 
 # Convenience function

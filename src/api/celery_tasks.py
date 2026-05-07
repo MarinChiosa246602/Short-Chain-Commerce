@@ -55,9 +55,33 @@ def process_batch_async(self, image_paths: list, source_farm: str = None, destin
             db = get_database_manager()
             db.initialize()
             for extraction_result in result.get("results", []):
-                if extraction_result.get("status") == "success":
-                    # Save individual extractions
-                    pass
+                if extraction_result.get("status") in ("success", "partial"):
+                    extraction = extraction_result.get("extraction", {})
+                    if extraction:
+                        db.save_extraction(
+                            extraction_id=str(extraction.get("image_id")),
+                            image_id=str(extraction.get("image_id")),
+                            timestamp=extraction.get("timestamp"),
+                            source_farm=extraction.get("metadata", {}).get("source_farm") or source_farm,
+                            destination=extraction.get("metadata", {}).get("destination") or destination,
+                            status=extraction_result.get("status", "error"),
+                            is_valid=extraction_result.get("is_valid", False),
+                            processing_time_ms=extraction_result.get("processing_time_ms", 0),
+                            products=[
+                                {
+                                    "product_id": p.get("product_id"),
+                                    "product_name": p.get("product_name"),
+                                    "quantity": p.get("quantity"),
+                                    "unit": p.get("unit"),
+                                    "expiry_date": p.get("expiry_date"),
+                                    "storage_location": p.get("storage_location"),
+                                    "condition": p.get("condition"),
+                                }
+                                for p in extraction.get("products", [])
+                            ],
+                            missing_fields=extraction.get("missing_fields", []),
+                            low_confidence_fields=extraction.get("low_confidence_fields", []),
+                        )
         except Exception as db_err:
             logger.warning(f"Failed to save batch to database: {db_err}")
 

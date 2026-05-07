@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { AlertTriangle, Calendar, CheckCircle, Bell, BellOff, Eye, Filter, Download } from 'lucide-react'
-import api from '../services/api'
+import api, { getExpiringProducts } from '../services/api'
 
 /**
  * Expiration Alerts Component
@@ -24,26 +24,25 @@ function ExpirationAlerts() {
     try {
       setLoading(true)
 
-      // Try to get from API first
+      // Use the new expiring products API
       try {
-        const response = await api.getRecentExtractions(200)
+        const response = await getExpiringProducts(14)
 
-        if (response.results && response.results.length > 0) {
-          const allProducts = []
-          response.results.forEach(extraction => {
-            if (extraction.data && extraction.data.products) {
-              extraction.data.products.forEach(product => {
-                if (product.expiry_date) {
-                  allProducts.push({
-                    ...product,
-                    extractionId: extraction.id,
-                    timestamp: extraction.timestamp
-                  })
-                }
+        // Combine all urgency groups into a single list
+        const allProducts = []
+        ;['expired', 'critical', 'warning', 'info'].forEach(urgency => {
+          if (response[urgency]) {
+            response[urgency].forEach(product => {
+              allProducts.push({
+                ...product,
+                extractionId: product.id || product.extraction_id,
+                timestamp: product.timestamp
               })
-            }
-          })
+            })
+          }
+        })
 
+        if (allProducts.length > 0) {
           generateAlerts(allProducts)
         } else {
           generateAlerts(getMockProducts())

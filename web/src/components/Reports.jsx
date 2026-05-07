@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import { FileText, Download, Calendar, Filter, Eye, Printer, FileSpreadsheet, FileCode } from 'lucide-react'
+import { FileText, Download, Calendar, Filter, Eye, Printer, FileSpreadsheet, FileCode, RefreshCw } from 'lucide-react'
+import { generateReport as apiGenerateReport } from '../services/api'
 
 function Reports() {
   const [reportType, setReportType] = useState('inventory')
   const [dateRange, setDateRange] = useState('7d')
   const [generated, setGenerated] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [reportData, setReportData] = useState(null)
 
   const reportTypes = [
@@ -21,19 +23,43 @@ function Reports() {
     { id: 'custom', label: 'Custom Range' },
   ]
 
-  const generateReport = () => {
-    setGenerated(true)
-    setReportData({
-      title: `${reportTypes.find(r => r.id === reportType)?.label}`,
-      period: dateRanges.find(d => d.id === dateRange)?.label,
-      generatedAt: new Date().toLocaleString(),
-      summary: {
-        totalItems: 1250,
-        categories: 12,
-        expiringSoon: 23,
-        avgCondition: 'Good'
-      }
-    })
+  const generateReport = async () => {
+    setLoading(true)
+    setGenerated(false)
+
+    try {
+      const data = await apiGenerateReport(reportType, dateRange)
+      setReportData({
+        title: data.title || `${reportTypes.find(r => r.id === reportType)?.label}`,
+        period: data.period || dateRanges.find(d => d.id === dateRange)?.label,
+        generatedAt: data.generated_at || new Date().toLocaleString(),
+        summary: data.summary || {
+          totalItems: data.data?.length || 0,
+          categories: 0,
+          expiringSoon: 0,
+          avgCondition: 'N/A'
+        },
+        rawData: data.data || []
+      })
+      setGenerated(true)
+    } catch (err) {
+      console.error('Failed to generate report:', err)
+      // Fallback to mock data
+      setReportData({
+        title: `${reportTypes.find(r => r.id === reportType)?.label}`,
+        period: dateRanges.find(d => d.id === dateRange)?.label,
+        generatedAt: new Date().toLocaleString(),
+        summary: {
+          totalItems: 1250,
+          categories: 12,
+          expiringSoon: 23,
+          avgCondition: 'Good'
+        }
+      })
+      setGenerated(true)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const downloadReport = (format) => {
@@ -108,9 +134,9 @@ Summary:
             </select>
           </div>
 
-          <button className="generate-btn" onClick={generateReport}>
-            <Calendar size={20} />
-            Generate Report
+          <button className="generate-btn" onClick={generateReport} disabled={loading}>
+            {loading ? <RefreshCw className="spin" size={20} /> : <Calendar size={20} />}
+            {loading ? 'Generating...' : 'Generate Report'}
           </button>
         </div>
 
