@@ -40,7 +40,8 @@
       "Bash(ls.exe *)",
       "Bash(git.exe status *)",
       "Bash(.venv\\\\Scripts\\\\python.exe -m pip install PyJWT)",
-      "Bash(.venv\\\\Scripts\\\\python.exe -m pip install -r requirements.txt)"
+      "Bash(.venv\\\\Scripts\\\\python.exe -m pip install -r requirements.txt)",
+      "Bash(docker build *)"
     ]
   }
 }
