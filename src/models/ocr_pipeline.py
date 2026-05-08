@@ -197,7 +197,7 @@ class TextExtractor:
             if image.startswith(("http://", "https://")):
                 import requests
 
-                response = requests.get(image)
+                response = requests.get(image, timeout=10)
                 response.raise_for_status()
                 image = np.array(Image.open(io.BytesIO(response.content)))
             else:
@@ -337,7 +337,7 @@ class OCRPipeline:
             if image.startswith(("http://", "https://")):
                 import requests
 
-                response = requests.get(image)
+                response = requests.get(image, timeout=10)
                 response.raise_for_status()
                 image = np.array(Image.open(io.BytesIO(response.content)))
             else:

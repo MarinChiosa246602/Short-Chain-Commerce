@@ -42,7 +42,7 @@ class ImagePreprocessor:
                 # Download from URL
                 import requests
 
-                response = requests.get(image_source)
+                response = requests.get(image_source, timeout=10)
                 response.raise_for_status()
                 image = Image.open(io.BytesIO(response.content))
             else:

@@ -41,8 +41,11 @@ jobs:
     - name: Run linting
       run: |
         pip install -r requirements-dev.txt
+        pip install isort bandit
         black --check src/
-        flake8 src/ --max-line-length=127
+        isort --check-only src/
+        flake8 src/
+        bandit -r src/ -ll
 
     - name: Run tests with coverage
       run: |

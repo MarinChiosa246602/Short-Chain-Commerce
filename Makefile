@@ -37,8 +37,10 @@ test-coverage:
 	python -m pytest tests/ --cov=src --cov-report=html --cov-report=term
 
 lint:
-	python -m flake8 src/ --max-line-length=127
-	python -m black --check src/ pipeline/ 2>/dev/null || echo "Skipping black"
+	python -m black --check src/
+	python -m isort --check-only src/
+	python -m flake8 src/
+	python -m bandit -r src/ -ll
 
 check:
 	python scripts/check_deploy.py

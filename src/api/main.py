@@ -7,9 +7,9 @@ Full implementation with CV pipeline, OCR, and monitoring integration.
 import logging
 import os
 import time
-from datetime import datetime, timedelta  # FIX 1: added timedelta to top-level import
-from typing import List, Optional
 import hashlib
+from datetime import datetime, timedelta
+from typing import List, Optional
 from uuid import uuid4
 
 import cv2
@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from monitoring.logging_utils import setup_logging
-from .security import require_auth, generate_jwt_token  # FIX 2: removed unused check_rate_limit import
+from .security import check_rate_limit, generate_jwt_token, require_auth
 
 # Performance monitoring
 try:
@@ -40,7 +40,6 @@ setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
 # Check for weak default passwords at startup
-import sys
 if os.getenv("ADMIN_PASSWORD") is None:
     logger.warning("WARNING: ADMIN_PASSWORD environment variable is not set. Set it before deploying to production.")
 if os.getenv("FARMER_PASSWORD") is None:
@@ -127,9 +126,6 @@ def update_metrics(status: str, processing_time_ms: float):
     metrics["requests_by_status"][status_key] = metrics["requests_by_status"].get(status_key, 0) + 1
 
 
-# FIX 3: extracted metrics computation into a standalone helper so both
-# get_metrics() (the route) and detailed_health() can call it without
-# triggering FastAPI dependency injection.
 def _compute_metrics() -> dict:
     """Return the current metrics dict (no auth required at this layer)."""
     avg_time = (
@@ -168,7 +164,7 @@ async def health_check():
 @app.get("/api/v1/metrics")
 def get_metrics(_user: dict = Depends(require_auth)):
     """Get API performance metrics."""
-    return _compute_metrics()  # FIX 3 (cont.): delegate to the helper
+    return _compute_metrics()
 
 
 # Pydantic models for login
@@ -216,7 +212,7 @@ async def extract_data(
     file: UploadFile = File(..., description="Image file to process"),
     source_farm: Optional[str] = Form(None, description="Origin farm identifier"),
     destination: Optional[str] = Form(None, description="Destination identifier"),
-    _user: dict = Depends(require_auth),  # FIX 5: added missing auth guard
+    _user: dict = Depends(require_auth),
 ):
     """Extract logistics data from an uploaded image.
 
@@ -744,13 +740,13 @@ async def get_deliveries(_user: dict = Depends(require_auth)):
         db = get_database_manager()
         db.initialize()
 
-        start_date = datetime.utcnow() - timedelta(days=7)  # FIX 1 (cont.): timedelta now from top-level import
+        start_date = datetime.utcnow() - timedelta(days=7)
         extractions = db.query_extractions(status="success", start_date=start_date, limit=100)
 
         deliveries = []
         for ext in extractions:
             dest_str = ext.get("destination", "") or ""
-            dest_hash = int(hashlib.md5(dest_str.encode()).hexdigest(), 16) % 10000
+            dest_hash = int(hashlib.sha256(dest_str.encode()).hexdigest(), 16) % 10000
             delivery = {
                 "id": ext.get("id"),
                 "destination": ext.get("destination"),
@@ -782,7 +778,7 @@ async def generate_report(body: ReportRequest, _user: dict = Depends(require_aut
         # Parse date range
         days_map = {"7d": 7, "30d": 30, "90d": 90}
         days = days_map.get(body.date_range, 7)
-        start_date = datetime.utcnow() - timedelta(days=days)  # FIX 1 (cont.): timedelta now from top-level import
+        start_date = datetime.utcnow() - timedelta(days=days)
 
         report_data = {
             "title": f"{body.report_type.title()} Report",
