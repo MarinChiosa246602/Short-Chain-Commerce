@@ -7,9 +7,9 @@ import logging
 from celery import shared_task
 from celery.exceptions import MaxRetriesExceededError
 
-from src.pipeline.end_to_end import BatchProcessor
 from database.db_manager import get_database_manager
 from monitoring.logging_utils import get_extraction_logger
+from src.pipeline.end_to_end import BatchProcessor
 
 logger = logging.getLogger(__name__)
 extraction_logger = get_extraction_logger()
@@ -108,8 +108,9 @@ def extract_single_image(self, image_path: str, source_farm: str = None, destina
     Returns:
         Extraction result
     """
-    from src.pipeline.end_to_end import process_image
     from uuid import uuid4
+
+    from src.pipeline.end_to_end import process_image
 
     extraction_id = str(uuid4())
 

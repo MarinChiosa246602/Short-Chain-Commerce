@@ -8,11 +8,11 @@ This module handles:
 """
 
 import io
+from typing import Any, Dict, List, Optional
 
 import cv2
 import numpy as np
 from PIL import Image
-from typing import Any, Dict, List, Optional
 
 try:
     from ultralytics import YOLO
@@ -42,7 +42,7 @@ class ImagePreprocessor:
                 # Download from URL
                 import requests
 
-                response = requests.get(image_source)
+                response = requests.get(image_source, timeout=10)
                 response.raise_for_status()
                 image = Image.open(io.BytesIO(response.content))
             else:

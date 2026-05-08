@@ -222,12 +222,18 @@ Short-Chain-Commerce/
    pytest --cov=src --cov-report=html
    ```
 
-6. **Start API server:**
+6. **Run code quality checks:**
+   ```bash
+   pip install -r requirements-dev.txt
+   make lint
+   ```
+
+7. **Start API server:**
    ```bash
    uvicorn src.api.main:app --reload --port 8000
    ```
 
-7. **Access API documentation:**
+8. **Access API documentation:**
    - Swagger UI: http://localhost:8000/docs
    - ReDoc: http://localhost:8000/redoc
 

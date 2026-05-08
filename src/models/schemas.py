@@ -3,10 +3,11 @@ Data models for the Short Chain Commerce logistics data extraction system.
 """
 
 from datetime import datetime
-from typing import Optional, List
-from uuid import UUID, uuid4
-from pydantic import BaseModel, Field, validator, HttpUrl
 from enum import Enum
+from typing import List, Optional
+from uuid import UUID, uuid4
+
+from pydantic import BaseModel, Field, HttpUrl, validator
 
 
 class UnitType(str, Enum):

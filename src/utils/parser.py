@@ -9,17 +9,10 @@ This module handles:
 
 import re
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from models.schemas import (
-    ExtractionResponse,
-    Product,
-    Metadata,
-    UnitType,
-    ConditionType,
-    ValidationErrorDetail,
-)
+from models.schemas import ConditionType, ExtractionResponse, Metadata, Product, UnitType, ValidationErrorDetail
 
 
 class FieldValidator:

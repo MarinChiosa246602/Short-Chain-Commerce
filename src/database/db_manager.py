@@ -7,11 +7,11 @@ Provides:
 - Data persistence and history tracking
 """
 
+import functools
 import json
 import sqlite3
-import functools
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -98,8 +98,7 @@ class DatabaseManager:
             cursor = conn.cursor()
 
             # Extractions table
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS extractions (
                     id TEXT PRIMARY KEY,
                     image_id TEXT NOT NULL,
@@ -111,12 +110,10 @@ class DatabaseManager:
                     processing_time_ms REAL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-            """
-            )
+            """)
 
             # Products table
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS products (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     extraction_id TEXT NOT NULL,
@@ -129,32 +126,24 @@ class DatabaseManager:
                     condition TEXT,
                     FOREIGN KEY (extraction_id) REFERENCES extractions(id)
                 )
-            """
-            )
+            """)
 
             # Create index for faster queries
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_extractions_timestamp
                 ON extractions(timestamp)
-            """
-            )
-            cursor.execute(
-                """
+            """)
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_extractions_source_farm
                 ON extractions(source_farm)
-            """
-            )
-            cursor.execute(
-                """
+            """)
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_products_product_id
                 ON products(product_id)
-            """
-            )
+            """)
 
             # Anomalies table
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS anomalies (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     extraction_id TEXT,
@@ -165,19 +154,16 @@ class DatabaseManager:
                     detected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (extraction_id) REFERENCES extractions(id)
                 )
-            """
-            )
+            """)
 
             # Extraction metadata table
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS extraction_metadata (
                     extraction_id TEXT PRIMARY KEY,
                     metadata TEXT NOT NULL DEFAULT '{}',
                     FOREIGN KEY (extraction_id) REFERENCES extractions(id)
                 )
-            """
-            )
+            """)
 
     def save_extraction(
         self,
@@ -388,17 +374,11 @@ class DatabaseManager:
                         extraction["timestamp"] = ts.isoformat()
 
                 # Get products
-                cursor.execute(
-                    "SELECT * FROM products WHERE extraction_id = ?",
-                    (extraction["id"],)
-                )
+                cursor.execute("SELECT * FROM products WHERE extraction_id = ?", (extraction["id"],))
                 products = [dict(p) for p in cursor.fetchall()]
 
                 # Get metadata
-                cursor.execute(
-                    "SELECT metadata FROM extraction_metadata WHERE extraction_id = ?",
-                    (extraction["id"],)
-                )
+                cursor.execute("SELECT metadata FROM extraction_metadata WHERE extraction_id = ?", (extraction["id"],))
                 meta_row = cursor.fetchone()
                 metadata = dict(meta_row)["metadata"] if meta_row else {}
 
@@ -476,8 +456,7 @@ class DatabaseManager:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT
                     product_id,
                     product_name,
@@ -489,8 +468,7 @@ class DatabaseManager:
                 FROM products
                 GROUP BY product_id, product_name
                 ORDER BY total_quantity DESC
-            """
-            )
+            """)
             return [dict(row) for row in cursor.fetchall()]
 
     def get_recent_anomalies(self, limit: int = 50) -> List[Dict[str, Any]]:

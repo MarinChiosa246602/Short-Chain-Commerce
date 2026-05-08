@@ -8,10 +8,11 @@ This module provides detailed condition assessment for logistics products:
 - Multi-product handling
 """
 
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
 import cv2
 import numpy as np
-from typing import Dict, Any, List, Optional, Tuple
-from enum import Enum
 
 
 class DamageType(Enum):

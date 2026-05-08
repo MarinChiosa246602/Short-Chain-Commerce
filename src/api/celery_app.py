@@ -8,8 +8,9 @@ Use for:
 """
 
 import os
-from celery import Celery
 from pathlib import Path
+
+from celery import Celery
 
 # Add src to path
 SRC_ROOT = Path(__file__).resolve().parent

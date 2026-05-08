@@ -2,6 +2,10 @@
 line-length = 127
 target-version = ['py310', 'py311']
 
+[tool.isort]
+profile = "black"
+line_length = 127
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
@@ -13,5 +17,5 @@ source = ["src"]
 omit = ["src/tests/*"]
 
 [tool.coverage.report]
-fail_under = 51
+fail_under = 55
 show_missing = true
