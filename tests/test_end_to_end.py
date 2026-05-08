@@ -7,7 +7,7 @@ from unittest.mock import patch, MagicMock
 import numpy as np
 from datetime import datetime, timedelta
 
-from src.pipeline.end_to_end import (
+from pipeline.end_to_end import (
     EndToEndPipeline,
     BatchProcessor,
     ErrorRecovery,
@@ -47,7 +47,7 @@ class TestBatchProcessor:
 
     def test_init_creates_pipeline(self):
         """Test batch processor initialization."""
-        with patch('src.pipeline.end_to_end.EndToEndPipeline'):
+        with patch('pipeline.end_to_end.EndToEndPipeline'):
             processor = BatchProcessor({"test": "config"})
             assert processor.config == {"test": "config"}
 
@@ -86,9 +86,9 @@ class TestEndToEndPipeline:
 
     def test_init_creates_components(self):
         """Test pipeline initialization creates all components."""
-        with patch('src.pipeline.end_to_end.CVPipeline'), \
-             patch('src.pipeline.end_to_end.OCRPipeline'), \
-             patch('src.pipeline.end_to_end.ExtractionProcessor'):
+        with patch('pipeline.end_to_end.CVPipeline'), \
+             patch('pipeline.end_to_end.OCRPipeline'), \
+             patch('pipeline.end_to_end.ExtractionProcessor'):
             pipeline = EndToEndPipeline({"test": "config"})
             assert pipeline.config == {"test": "config"}
 
@@ -115,7 +115,7 @@ class TestEndToEndPipeline:
 class TestConvenienceFunctions:
     """Test convenience functions."""
 
-    @patch('src.pipeline.end_to_end.EndToEndPipeline')
+    @patch('pipeline.end_to_end.EndToEndPipeline')
     def test_process_image(self, mock_pipeline_class):
         """Test process_image convenience function."""
         mock_pipeline = MagicMock()
@@ -127,7 +127,7 @@ class TestConvenienceFunctions:
         assert result["status"] == "success"
         mock_pipeline.process.assert_called_once()
 
-    @patch('src.pipeline.end_to_end.BatchProcessor')
+    @patch('pipeline.end_to_end.BatchProcessor')
     def test_process_batch(self, mock_processor_class):
         """Test process_batch convenience function."""
         mock_processor = MagicMock()
@@ -145,9 +145,9 @@ class TestIntegrationScenarios:
 
     def test_full_pipeline_with_mocked_components(self):
         """Test full pipeline with all components mocked."""
-        with patch('src.pipeline.end_to_end.CVPipeline') as mock_cv, \
-             patch('src.pipeline.end_to_end.OCRPipeline') as mock_ocr, \
-             patch('src.pipeline.end_to_end.ExtractionProcessor') as mock_parser:
+        with patch('pipeline.end_to_end.CVPipeline') as mock_cv, \
+             patch('pipeline.end_to_end.OCRPipeline') as mock_ocr, \
+             patch('pipeline.end_to_end.ExtractionProcessor') as mock_parser:
 
             # Setup CV mock
             mock_cv.return_value.process.return_value = {

@@ -38,7 +38,9 @@
       "Bash(/bin/mv *)",
       "Bash(/usr/bin/git rm *)",
       "Bash(ls.exe *)",
-      "Bash(git.exe status *)"
+      "Bash(git.exe status *)",
+      "Bash(.venv\\\\Scripts\\\\python.exe -m pip install PyJWT)",
+      "Bash(.venv\\\\Scripts\\\\python.exe -m pip install -r requirements.txt)"
     ]
   }
 }

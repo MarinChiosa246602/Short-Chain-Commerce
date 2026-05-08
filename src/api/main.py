@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from database.db_manager import get_database_manager
 from monitoring.logging_utils import setup_logging
-from src.pipeline.end_to_end import BatchProcessor, EndToEndPipeline
+from pipeline.end_to_end import BatchProcessor, EndToEndPipeline
 
 from .security import check_rate_limit, generate_jwt_token, require_auth
 
