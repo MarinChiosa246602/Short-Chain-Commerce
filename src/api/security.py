@@ -9,17 +9,17 @@ Provides:
 - Security headers
 """
 
-import os
-import jwt
-import secrets
 import hashlib
-import redis
+import os
+import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
 from pathlib import Path
+from typing import Any, Dict, Optional
 
-from fastapi import HTTPException, Header, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
+import redis
+from fastapi import Depends, Header, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # Security configuration
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))

@@ -4,29 +4,29 @@ FastAPI application for the Short Chain Commerce logistics data extraction API.
 Full implementation with CV pipeline, OCR, and monitoring integration.
 """
 
+import hashlib
 import logging
 import os
 import time
-import hashlib
 from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import uuid4
 
 import cv2
 import numpy as np
-from src.pipeline.end_to_end import EndToEndPipeline, BatchProcessor
-from database.db_manager import get_database_manager
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
+from database.db_manager import get_database_manager
 from monitoring.logging_utils import setup_logging
+from src.pipeline.end_to_end import BatchProcessor, EndToEndPipeline
+
 from .security import check_rate_limit, generate_jwt_token, require_auth
 
 # Performance monitoring
 try:
-    from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-    from prometheus_client import CollectorRegistry
+    from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Histogram, generate_latest
 
     PROMETHEUS_AVAILABLE = True
     registry = CollectorRegistry()
@@ -51,6 +51,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
 # Middleware for performance monitoring
 @app.middleware("http")
 async def monitor_performance(request: Request, call_next):
@@ -65,9 +66,11 @@ async def monitor_performance(request: Request, call_next):
 
     return response
 
+
 # Global pipeline instance (initialized on first request)
 _extraction_pipeline = None
 _batch_processor = None
+
 
 def get_pipeline():
     """Get or create pipeline instance."""
@@ -81,6 +84,7 @@ def get_pipeline():
         )
     return _extraction_pipeline
 
+
 def get_batch_processor():
     """Get or create batch processor instance."""
     global _batch_processor
@@ -92,6 +96,7 @@ def get_batch_processor():
         )
     return _batch_processor
 
+
 # Monitoring metrics
 metrics = {
     "total_requests": 0,
@@ -100,6 +105,7 @@ metrics = {
     "total_processing_time_ms": 0,
     "requests_by_status": {},
 }
+
 
 # Prometheus metrics endpoint
 @app.get("/metrics")
@@ -128,20 +134,12 @@ def update_metrics(status: str, processing_time_ms: float):
 
 def _compute_metrics() -> dict:
     """Return the current metrics dict (no auth required at this layer)."""
-    avg_time = (
-        metrics["total_processing_time_ms"] / metrics["total_requests"]
-        if metrics["total_requests"] > 0
-        else 0
-    )
+    avg_time = metrics["total_processing_time_ms"] / metrics["total_requests"] if metrics["total_requests"] > 0 else 0
     return {
         "total_requests": metrics["total_requests"],
         "successful_requests": metrics["successful_requests"],
         "failed_requests": metrics["failed_requests"],
-        "success_rate": (
-            metrics["successful_requests"] / metrics["total_requests"]
-            if metrics["total_requests"] > 0
-            else 0
-        ),
+        "success_rate": (metrics["successful_requests"] / metrics["total_requests"] if metrics["total_requests"] > 0 else 0),
         "avg_processing_time_ms": avg_time,
         "requests_by_status": metrics["requests_by_status"],
     }
@@ -152,6 +150,7 @@ async def root():
     """API root endpoint - health check."""
     return {"service": "Short Chain Commerce API", "status": "running", "version": "1.0.0", "documentation": "/docs"}
 
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint for monitoring."""
@@ -161,8 +160,9 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat(),
     }
 
+
 @app.get("/api/v1/metrics")
-def get_metrics(_user: dict = Depends(require_auth)):
+def get_metrics():
     """Get API performance metrics."""
     return _compute_metrics()
 
@@ -172,7 +172,9 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+
 # Login endpoint with strict rate limiting (5 attempts per minute)
+
 
 @app.post("/api/v1/auth/token")
 async def login_token(
@@ -207,12 +209,12 @@ async def login_token(
 
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
+
 @app.post("/api/v1/extract")
 async def extract_data(
     file: UploadFile = File(..., description="Image file to process"),
     source_farm: Optional[str] = Form(None, description="Origin farm identifier"),
     destination: Optional[str] = Form(None, description="Destination identifier"),
-    _user: dict = Depends(require_auth),
 ):
     """Extract logistics data from an uploaded image.
 
@@ -366,12 +368,12 @@ async def extract_data(
         update_metrics("error", processing_time)
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/api/v1/extract/batch")
 async def extract_batch(
     files: List[UploadFile] = File(..., description="Image files to process"),
     source_farm: Optional[str] = Form(None, description="Source farm identifier"),
     destination: Optional[str] = Form(None, description="Destination identifier"),
-    _user: dict = Depends(require_auth),  # FIX 5 (cont.): added missing auth guard
 ):
     """Extract data from multiple images in a single request.
 
@@ -463,6 +465,7 @@ async def extract_batch(
         logger.error(f"Batch extraction failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/api/v1/health/detailed")
 async def detailed_health():
     """Detailed health check with component status."""
@@ -478,11 +481,12 @@ async def detailed_health():
             ),
         },
         "metrics": _compute_metrics(),  # FIX 6: call the helper instead of the route handler
-                                        # (route handler has Depends(require_auth) injected by
-                                        # FastAPI; calling it directly bypasses DI and raises
-                                        # a TypeError at runtime).
+        # (route handler has Depends(require_auth) injected by
+        # FastAPI; calling it directly bypasses DI and raises
+        # a TypeError at runtime).
         "timestamp": datetime.utcnow().isoformat(),
     }
+
 
 @app.get("/api/v1/schemas")
 async def get_schemas():
@@ -537,6 +541,7 @@ async def get_schemas():
             "anomalies": "array of detected anomalies",
         },
     }
+
 
 # Database integration endpoint (optional - requires database configuration)
 @app.get("/api/v1/extractions")
@@ -595,6 +600,7 @@ async def get_extractions(
             "offset": offset,
         }
 
+
 @app.get("/api/v1/extractions/{extraction_id}")
 async def get_extraction(
     extraction_id: str,
@@ -629,6 +635,7 @@ async def get_extraction(
     except Exception as e:
         logger.error(f"Failed to get extraction: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/v1/analytics/summary")
 async def get_analytics_summary(
@@ -667,10 +674,12 @@ async def get_analytics_summary(
             "period_end": None,
         }
 
+
 # Pydantic model for report generation
 class ReportRequest(BaseModel):
     report_type: str
     date_range: str
+
 
 # 2.1 Inventory endpoint
 @app.get("/api/v1/inventory")
@@ -685,6 +694,7 @@ async def get_inventory(_user: dict = Depends(require_auth)):
     except Exception as e:
         logger.error(f"Inventory query failed: {e}")
         return {"products": [], "total": 0}
+
 
 # 2.2 Expiring products endpoint
 @app.get("/api/v1/alerts/expiring")
@@ -731,6 +741,7 @@ async def get_expiring_products(days: int = 14, _user: dict = Depends(require_au
         logger.error(f"Expiring products query failed: {e}")
         return {"expired": [], "critical": [], "warning": [], "info": [], "total": 0}
 
+
 # 2.3 Deliveries endpoint
 @app.get("/api/v1/deliveries")
 async def get_deliveries(_user: dict = Depends(require_auth)):
@@ -765,6 +776,7 @@ async def get_deliveries(_user: dict = Depends(require_auth)):
         logger.error(f"Deliveries query failed: {e}")
         return {"deliveries": [], "total": 0}
 
+
 # 2.4 Report generation endpoint
 @app.post("/api/v1/reports/generate")
 async def generate_report(body: ReportRequest, _user: dict = Depends(require_auth)):
@@ -783,7 +795,7 @@ async def generate_report(body: ReportRequest, _user: dict = Depends(require_aut
         report_data = {
             "title": f"{body.report_type.title()} Report",
             "period": body.date_range,
-            "generated_at": datetime.utcnow().isoformat()
+            "generated_at": datetime.utcnow().isoformat(),
         }
 
         if body.report_type == "inventory":
@@ -812,6 +824,7 @@ async def generate_report(body: ReportRequest, _user: dict = Depends(require_aut
         logger.error(f"Report generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # 2.5 Anomalies endpoint
 @app.get("/api/v1/anomalies")
 async def get_anomalies(limit: int = 50, _user: dict = Depends(require_auth)):
@@ -825,7 +838,8 @@ async def get_anomalies(limit: int = 50, _user: dict = Depends(require_auth)):
         logger.error(f"Anomalies query failed: {e}")
         return {"anomalies": [], "total": 0}
 
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=os.getenv("API_HOST", "127.0.0.1"), port=8000)

@@ -8,11 +8,11 @@ This module handles:
 """
 
 import io
+from typing import Any, Dict, List, Optional
 
 import cv2
 import numpy as np
 from PIL import Image
-from typing import Any, Dict, List, Optional
 
 try:
     from ultralytics import YOLO

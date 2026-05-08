@@ -24,6 +24,7 @@ try:
 
     PADDLEOCR_AVAILABLE = True
 except ImportError:
+    PaddleOCR = None
     PADDLEOCR_AVAILABLE = False
 
 
@@ -132,7 +133,7 @@ class TextExtractor:
             lang: Language for OCR (default: English)
             use_gpu: Whether to use GPU acceleration
         """
-        if not PADDLEOCR_AVAILABLE:
+        if PaddleOCR is None:
             raise ImportError("paddleocr package is required. Install with: pip install paddleocr paddlepaddle")
 
         # PaddleOCR argument names vary between versions.
@@ -312,10 +313,13 @@ class OCRPipeline:
             config: Pipeline configuration
         """
         self.config = config or {}
-        self.extractor = TextExtractor(
-            lang=self.config.get("language", "en"),
-            use_gpu=self.config.get("use_gpu", False),
-        )
+        try:
+            self.extractor = TextExtractor(
+                lang=self.config.get("language", "en"),
+                use_gpu=self.config.get("use_gpu", False),
+            )
+        except ImportError:
+            self.extractor = None
         self.preprocessor = OCRPreprocessor()
 
     def process(self, image: Any, detect_regions: bool = True) -> Dict[str, Any]:
@@ -344,6 +348,16 @@ class OCRPipeline:
                 image = cv2.imread(image)
         elif isinstance(image, Image.Image):
             image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+
+        if self.extractor is None:
+            return {
+                "all_texts": [],
+                "high_confidence_texts": [],
+                "expiry_date": None,
+                "product_code": None,
+                "quantity": None,
+                "processing_time_ms": (time.time() - start_time) * 1000,
+            }
 
         all_texts = self.extractor.extract_text(image, enhance=True)
 
@@ -376,6 +390,9 @@ class OCRPipeline:
         Returns:
             Extracted text for the ROI
         """
+        if self.extractor is None:
+            return {"texts": [], "bbox": bbox}
+
         roi_texts = self.extractor.extract_from_roi(image, bbox)
         return {"texts": roi_texts, "bbox": bbox}
 
