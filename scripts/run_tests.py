@@ -45,7 +45,7 @@ def test_pipeline_components():
     print("TESTING PIPELINE COMPONENTS")
     print("="*60)
 
-    from pipeline.end_to_end import EndToEndPipeline, BatchProcessor
+    from src.pipeline.end_to_end import EndToEndPipeline, BatchProcessor
     from models.cv_pipeline import CVPipeline, ImagePreprocessor
     from models.ocr_pipeline import OCRPipeline
 

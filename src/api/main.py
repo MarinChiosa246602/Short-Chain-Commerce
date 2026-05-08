@@ -7,21 +7,21 @@ Full implementation with CV pipeline, OCR, and monitoring integration.
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta  # FIX 1: added timedelta to top-level import
 from typing import List, Optional
 import hashlib
 from uuid import uuid4
 
 import cv2
 import numpy as np
-from pipeline.end_to_end import EndToEndPipeline, BatchProcessor
+from src.pipeline.end_to_end import EndToEndPipeline, BatchProcessor
 from database.db_manager import get_database_manager
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from monitoring.logging_utils import setup_logging
-from .security import require_auth, check_rate_limit, generate_jwt_token
+from .security import require_auth, generate_jwt_token  # FIX 2: removed unused check_rate_limit import
 
 # Performance monitoring
 try:
@@ -52,7 +52,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-
 # Middleware for performance monitoring
 @app.middleware("http")
 async def monitor_performance(request: Request, call_next):
@@ -67,11 +66,9 @@ async def monitor_performance(request: Request, call_next):
 
     return response
 
-
 # Global pipeline instance (initialized on first request)
 _extraction_pipeline = None
 _batch_processor = None
-
 
 def get_pipeline():
     """Get or create pipeline instance."""
@@ -85,7 +82,6 @@ def get_pipeline():
         )
     return _extraction_pipeline
 
-
 def get_batch_processor():
     """Get or create batch processor instance."""
     global _batch_processor
@@ -97,7 +93,6 @@ def get_batch_processor():
         )
     return _batch_processor
 
-
 # Monitoring metrics
 metrics = {
     "total_requests": 0,
@@ -107,10 +102,9 @@ metrics = {
     "requests_by_status": {},
 }
 
-
 # Prometheus metrics endpoint
 @app.get("/metrics")
-async def prometheus_metrics():
+async def prometheus_metrics(_user: dict = Depends(require_auth)):
     """Prometheus-compatible metrics endpoint."""
     if PROMETHEUS_AVAILABLE:
         return Response(content=generate_latest(registry), media_type=CONTENT_TYPE_LATEST)
@@ -133,11 +127,34 @@ def update_metrics(status: str, processing_time_ms: float):
     metrics["requests_by_status"][status_key] = metrics["requests_by_status"].get(status_key, 0) + 1
 
 
+# FIX 3: extracted metrics computation into a standalone helper so both
+# get_metrics() (the route) and detailed_health() can call it without
+# triggering FastAPI dependency injection.
+def _compute_metrics() -> dict:
+    """Return the current metrics dict (no auth required at this layer)."""
+    avg_time = (
+        metrics["total_processing_time_ms"] / metrics["total_requests"]
+        if metrics["total_requests"] > 0
+        else 0
+    )
+    return {
+        "total_requests": metrics["total_requests"],
+        "successful_requests": metrics["successful_requests"],
+        "failed_requests": metrics["failed_requests"],
+        "success_rate": (
+            metrics["successful_requests"] / metrics["total_requests"]
+            if metrics["total_requests"] > 0
+            else 0
+        ),
+        "avg_processing_time_ms": avg_time,
+        "requests_by_status": metrics["requests_by_status"],
+    }
+
+
 @app.get("/")
 async def root():
     """API root endpoint - health check."""
     return {"service": "Short Chain Commerce API", "status": "running", "version": "1.0.0", "documentation": "/docs"}
-
 
 @app.get("/health")
 async def health_check():
@@ -148,19 +165,10 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat(),
     }
 
-
 @app.get("/api/v1/metrics")
 def get_metrics(_user: dict = Depends(require_auth)):
     """Get API performance metrics."""
-    avg_time = metrics["total_processing_time_ms"] / metrics["total_requests"] if metrics["total_requests"] > 0 else 0
-    return {
-        "total_requests": metrics["total_requests"],
-        "successful_requests": metrics["successful_requests"],
-        "failed_requests": metrics["failed_requests"],
-        "success_rate": (metrics["successful_requests"] / metrics["total_requests"] if metrics["total_requests"] > 0 else 0),
-        "avg_processing_time_ms": avg_time,
-        "requests_by_status": metrics["requests_by_status"],
-    }
+    return _compute_metrics()  # FIX 3 (cont.): delegate to the helper
 
 
 # Pydantic models for login
@@ -168,36 +176,23 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
-
 # Login endpoint with strict rate limiting (5 attempts per minute)
-login_attempts: dict = {}
-
 
 @app.post("/api/v1/auth/token")
-async def login_token(request: LoginRequest):
-    """
-    Login endpoint with rate limiting (5 attempts per minute).
-    Returns a JWT token for authenticated requests.
-    """
-    client_ip = request.client.host if hasattr(request, "client") else "unknown"
+async def login_token(
+    request: LoginRequest,
+    http_request: Request,
+):
+    """Login endpoint with rate limiting (5 attempts per minute).
+    Returns a JWT token for authenticated requests."""
+    client_ip = http_request.client.host if http_request.client else "unknown"
 
     # Stricter rate limit: 5 attempts per minute
-    current_time = datetime.now().timestamp()
-    if client_ip not in login_attempts:
-        login_attempts[client_ip] = []
-
-    # Remove old attempts outside the 60-second window
-    login_attempts[client_ip] = [t for t in login_attempts[client_ip] if current_time - t < 60]
-
-    # Check if limit exceeded
-    if len(login_attempts[client_ip]) >= 5:
+    if not check_rate_limit(client_ip, limit=5, window=60):
         raise HTTPException(
             status_code=429,
             detail="Too many login attempts. Please try again in 60 seconds.",
         )
-
-    # Add current attempt
-    login_attempts[client_ip].append(current_time)
 
     # Simple demo authentication (in production, use proper password hashing)
     admin_password = os.getenv("ADMIN_PASSWORD")
@@ -216,22 +211,20 @@ async def login_token(request: LoginRequest):
 
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
-
 @app.post("/api/v1/extract")
 async def extract_data(
     file: UploadFile = File(..., description="Image file to process"),
     source_farm: Optional[str] = Form(None, description="Origin farm identifier"),
     destination: Optional[str] = Form(None, description="Destination identifier"),
+    _user: dict = Depends(require_auth),  # FIX 5: added missing auth guard
 ):
-    """
-    Extract logistics data from an uploaded image.
+    """Extract logistics data from an uploaded image.
 
     - **file**: Image file (JPEG, PNG, WEBP)
     - **source_farm**: (Optional) Override source farm identifier
     - **destination**: (Optional) Override destination identifier
 
-    Returns extracted product data in structured JSON format.
-    """
+    Returns extracted product data in structured JSON format."""
     start_time = time.time()
 
     # Validate file type
@@ -377,22 +370,20 @@ async def extract_data(
         update_metrics("error", processing_time)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.post("/api/v1/extract/batch")
 async def extract_batch(
     files: List[UploadFile] = File(..., description="Image files to process"),
     source_farm: Optional[str] = Form(None, description="Source farm identifier"),
     destination: Optional[str] = Form(None, description="Destination identifier"),
+    _user: dict = Depends(require_auth),  # FIX 5 (cont.): added missing auth guard
 ):
-    """
-    Extract data from multiple images in a single request.
+    """Extract data from multiple images in a single request.
 
     - **files**: List of image files
     - **source_farm**: Source farm identifier
     - **destination**: Destination identifier
 
-    Returns aggregated results for all images.
-    """
+    Returns aggregated results for all images."""
     start_time = time.time()
 
     if len(files) > 50:
@@ -476,7 +467,6 @@ async def extract_batch(
         logger.error(f"Batch extraction failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.get("/api/v1/health/detailed")
 async def detailed_health():
     """Detailed health check with component status."""
@@ -491,10 +481,12 @@ async def detailed_health():
                 "initialized" if hasattr(pipeline, "extraction_processor") and pipeline.extraction_processor else "pending"
             ),
         },
-        "metrics": get_metrics(),
+        "metrics": _compute_metrics(),  # FIX 6: call the helper instead of the route handler
+                                        # (route handler has Depends(require_auth) injected by
+                                        # FastAPI; calling it directly bypasses DI and raises
+                                        # a TypeError at runtime).
         "timestamp": datetime.utcnow().isoformat(),
     }
-
 
 @app.get("/api/v1/schemas")
 async def get_schemas():
@@ -550,18 +542,16 @@ async def get_schemas():
         },
     }
 
-
 # Database integration endpoint (optional - requires database configuration)
 @app.get("/api/v1/extractions")
 async def get_extractions(
     limit: int = 50,
     offset: int = 0,
     status: Optional[str] = None,
+    _user: dict = Depends(require_auth),  # FIX 7: added missing auth guard
 ):
-    """
-    Get extraction history from database.
-    Returns mock data if database is not configured.
-    """
+    """Get extraction history from database.
+    Returns mock data if database is not configured."""
     try:
         db = get_database_manager()
         db.initialize()
@@ -609,9 +599,11 @@ async def get_extractions(
             "offset": offset,
         }
 
-
 @app.get("/api/v1/extractions/{extraction_id}")
-async def get_extraction(extraction_id: str):
+async def get_extraction(
+    extraction_id: str,
+    _user: dict = Depends(require_auth),  # FIX 7 (cont.): added missing auth guard
+):
     """Get a specific extraction by ID."""
     try:
         db = get_database_manager()
@@ -642,22 +634,17 @@ async def get_extraction(extraction_id: str):
         logger.error(f"Failed to get extraction: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.get("/api/v1/analytics/summary")
 async def get_analytics_summary(
     days: int = 7,
 ):
-    """
-    Get analytics summary for the dashboard.
-    Returns aggregated statistics for the specified number of days.
-    """
+    """Get analytics summary for the dashboard.
+    Returns aggregated statistics for the specified number of days."""
     try:
-        from datetime import datetime, timedelta
-
         db = get_database_manager()
         db.initialize()
 
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.utcnow() - timedelta(days=days)  # FIX 1 (cont.): timedelta now from top-level import
         stats = db.get_statistics(start_date=start_date)
 
         return {
@@ -673,7 +660,6 @@ async def get_analytics_summary(
 
     except Exception as e:
         logger.warning(f"Analytics query failed: {e}")
-        # Return default values
         return {
             "period_days": days,
             "total_extractions": 0,
@@ -685,20 +671,16 @@ async def get_analytics_summary(
             "period_end": None,
         }
 
-
 # Pydantic model for report generation
 class ReportRequest(BaseModel):
     report_type: str
     date_range: str
 
-
 # 2.1 Inventory endpoint
 @app.get("/api/v1/inventory")
 async def get_inventory(_user: dict = Depends(require_auth)):
-    """
-    Get aggregated product inventory.
-    Returns totals grouped by product.
-    """
+    """Get aggregated product inventory.
+    Returns totals grouped by product."""
     try:
         db = get_database_manager()
         db.initialize()
@@ -708,14 +690,11 @@ async def get_inventory(_user: dict = Depends(require_auth)):
         logger.error(f"Inventory query failed: {e}")
         return {"products": [], "total": 0}
 
-
 # 2.2 Expiring products endpoint
 @app.get("/api/v1/alerts/expiring")
 async def get_expiring_products(days: int = 14, _user: dict = Depends(require_auth)):
-    """
-    Get products expiring within specified days.
-    Returns products grouped by urgency level.
-    """
+    """Get products expiring within specified days.
+    Returns products grouped by urgency level."""
     try:
         db = get_database_manager()
         db.initialize()
@@ -756,25 +735,20 @@ async def get_expiring_products(days: int = 14, _user: dict = Depends(require_au
         logger.error(f"Expiring products query failed: {e}")
         return {"expired": [], "critical": [], "warning": [], "info": [], "total": 0}
 
-
 # 2.3 Deliveries endpoint
 @app.get("/api/v1/deliveries")
 async def get_deliveries(_user: dict = Depends(require_auth)):
-    """
-    Get pending deliveries from recent extractions.
-    Returns deliveries derived from successful extractions in the last 7 days.
-    """
+    """Get pending deliveries from recent extractions.
+    Returns deliveries derived from successful extractions in the last 7 days."""
     try:
         db = get_database_manager()
         db.initialize()
-        from datetime import timedelta
 
-        start_date = datetime.utcnow() - timedelta(days=7)
+        start_date = datetime.utcnow() - timedelta(days=7)  # FIX 1 (cont.): timedelta now from top-level import
         extractions = db.query_extractions(status="success", start_date=start_date, limit=100)
 
         deliveries = []
         for ext in extractions:
-            # Mock location using deterministic hash (MD5 is stable across sessions)
             dest_str = ext.get("destination", "") or ""
             dest_hash = int(hashlib.md5(dest_str.encode()).hexdigest(), 16) % 10000
             delivery = {
@@ -795,15 +769,12 @@ async def get_deliveries(_user: dict = Depends(require_auth)):
         logger.error(f"Deliveries query failed: {e}")
         return {"deliveries": [], "total": 0}
 
-
 # 2.4 Report generation endpoint
 @app.post("/api/v1/reports/generate")
 async def generate_report(body: ReportRequest, _user: dict = Depends(require_auth)):
-    """
-    Generate a report based on type and date range.
+    """Generate a report based on type and date range.
     Report types: inventory, expiration, delivery, quality
-    Date ranges: 7d, 30d, 90d
-    """
+    Date ranges: 7d, 30d, 90d"""
     try:
         db = get_database_manager()
         db.initialize()
@@ -811,9 +782,13 @@ async def generate_report(body: ReportRequest, _user: dict = Depends(require_aut
         # Parse date range
         days_map = {"7d": 7, "30d": 30, "90d": 90}
         days = days_map.get(body.date_range, 7)
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.utcnow() - timedelta(days=days)  # FIX 1 (cont.): timedelta now from top-level import
 
-        report_data = {"title": f"{body.report_type.title()} Report", "period": body.date_range, "generated_at": datetime.utcnow().isoformat()}
+        report_data = {
+            "title": f"{body.report_type.title()} Report",
+            "period": body.date_range,
+            "generated_at": datetime.utcnow().isoformat()
+        }
 
         if body.report_type == "inventory":
             inventory = db.get_product_inventory()
@@ -841,13 +816,10 @@ async def generate_report(body: ReportRequest, _user: dict = Depends(require_aut
         logger.error(f"Report generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # 2.5 Anomalies endpoint
 @app.get("/api/v1/anomalies")
 async def get_anomalies(limit: int = 50, _user: dict = Depends(require_auth)):
-    """
-    Get recent anomalies.
-    """
+    """Get recent anomalies."""
     try:
         db = get_database_manager()
         db.initialize()
@@ -856,7 +828,6 @@ async def get_anomalies(limit: int = 50, _user: dict = Depends(require_auth)):
     except Exception as e:
         logger.error(f"Anomalies query failed: {e}")
         return {"anomalies": [], "total": 0}
-
 
 if __name__ == "__main__":
     import uvicorn

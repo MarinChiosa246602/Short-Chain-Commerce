@@ -1,5 +1,5 @@
 # Base image with CUDA support for GPU inference
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -32,7 +32,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY src/ ./src/
 COPY pipeline/ ./pipeline/
-COPY scripts/ ./scripts/
+
+# Expose API port
+EXPOSE 8000
 
 # Create necessary directories
 RUN mkdir -p /app/configs /app/data /app/logs

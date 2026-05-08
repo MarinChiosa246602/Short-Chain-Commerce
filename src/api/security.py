@@ -13,6 +13,7 @@ import os
 import jwt
 import secrets
 import hashlib
+import redis
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from pathlib import Path
@@ -29,9 +30,10 @@ API_KEYS_FILE = Path(os.getenv("API_KEYS_FILE", "data/api_keys.json"))
 # Rate limiting configuration
 RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", 100))
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", 60))
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-# Store rate limit data in memory (use Redis in production)
-rate_limit_store: Dict[str, list] = {}
+# Initialize Redis client
+redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
 security = HTTPBearer(auto_error=False)
 
@@ -108,31 +110,39 @@ def validate_api_key(api_key: str) -> Optional[Dict[str, Any]]:
     return keys.get(hashed_key)
 
 
-def check_rate_limit(client_ip: str) -> bool:
+def check_rate_limit(client_ip: str, limit: int = RATE_LIMIT_REQUESTS, window: int = RATE_LIMIT_WINDOW_SECONDS) -> bool:
     """
-    Check if client has exceeded rate limit.
+    Check if client has exceeded rate limit using Redis sliding window.
 
     Args:
         client_ip: Client IP address
+        limit: Maximum requests allowed in window
+        window: Window size in seconds
 
     Returns:
         True if request is allowed, False if rate limited
     """
     current_time = datetime.now().timestamp()
+    key = f"rate_limit:{client_ip}"
 
-    if client_ip not in rate_limit_store:
-        rate_limit_store[client_ip] = []
+    try:
+        pipeline = redis_client.pipeline()
+        # Remove old requests outside window
+        pipeline.zremrangebyscore(key, 0, current_time - window)
+        # Count current requests in window
+        pipeline.zcard(key)
+        # Add current request
+        pipeline.zadd(key, {str(current_time): current_time})
+        # Set expiry on the key to clean up inactive IPs
+        pipeline.expire(key, window + 1)
 
-    # Remove old requests outside window
-    rate_limit_store[client_ip] = [t for t in rate_limit_store[client_ip] if current_time - t < RATE_LIMIT_WINDOW_SECONDS]
+        _, count, _, _ = pipeline.execute()
 
-    # Check if limit exceeded
-    if len(rate_limit_store[client_ip]) >= RATE_LIMIT_REQUESTS:
-        return False
-
-    # Add current request
-    rate_limit_store[client_ip].append(current_time)
-    return True
+        return count < limit
+    except redis.RedisError as e:
+        # Log error and allow request to avoid blocking users on Redis failure
+        print(f"Redis rate limit error: {e}")
+        return True
 
 
 async def get_current_user(
