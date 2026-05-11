@@ -9,6 +9,7 @@ function CameraDashboard() {
 
   const [isCameraActive, setIsCameraActive] = useState(false)
   const [selectedImage, setSelectedImage] = useState(null)
+  const [selectedFile, setSelectedFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [capturedImage, setCapturedImage] = useState(null)
   const [loading, setLoading] = useState(false)

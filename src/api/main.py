@@ -7,10 +7,20 @@ Full implementation with CV pipeline, OCR, and monitoring integration.
 import hashlib
 import logging
 import os
+import sys
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List, Optional
 from uuid import uuid4
+
+# Add app root and src to path BEFORE any imports
+APP_ROOT = Path(__file__).resolve().parent.parent.parent
+SRC_ROOT = Path(__file__).resolve().parent.parent
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 import cv2
 import numpy as np
@@ -20,7 +30,7 @@ from pydantic import BaseModel
 
 from database.db_manager import get_database_manager
 from monitoring.logging_utils import setup_logging
-from pipeline.end_to_end import BatchProcessor, EndToEndPipeline
+from src.pipeline.end_to_end import BatchProcessor, EndToEndPipeline
 
 from .security import check_rate_limit, generate_jwt_token, require_auth
 
@@ -480,10 +490,7 @@ async def detailed_health():
                 "initialized" if hasattr(pipeline, "extraction_processor") and pipeline.extraction_processor else "pending"
             ),
         },
-        "metrics": _compute_metrics(),  # FIX 6: call the helper instead of the route handler
-        # (route handler has Depends(require_auth) injected by
-        # FastAPI; calling it directly bypasses DI and raises
-        # a TypeError at runtime).
+        "metrics": _compute_metrics(),
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -549,7 +556,7 @@ async def get_extractions(
     limit: int = 50,
     offset: int = 0,
     status: Optional[str] = None,
-    _user: dict = Depends(require_auth),  # FIX 7: added missing auth guard
+    _user: dict = Depends(require_auth),
 ):
     """Get extraction history from database.
     Returns mock data if database is not configured."""
@@ -604,7 +611,7 @@ async def get_extractions(
 @app.get("/api/v1/extractions/{extraction_id}")
 async def get_extraction(
     extraction_id: str,
-    _user: dict = Depends(require_auth),  # FIX 7 (cont.): added missing auth guard
+    _user: dict = Depends(require_auth),
 ):
     """Get a specific extraction by ID."""
     try:
@@ -647,7 +654,7 @@ async def get_analytics_summary(
         db = get_database_manager()
         db.initialize()
 
-        start_date = datetime.utcnow() - timedelta(days=days)  # FIX 1 (cont.): timedelta now from top-level import
+        start_date = datetime.utcnow() - timedelta(days=days)
         stats = db.get_statistics(start_date=start_date)
 
         return {
