@@ -6,8 +6,8 @@ version: '3.8'
 services:
   api:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     container_name: shortchain-api-prod
     ports:
       - "8000:8000"
@@ -55,8 +55,8 @@ services:
 
   worker:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     container_name: shortchain-worker-prod
     command: python3.10 -m celery -A src.api.celery_app worker --loglevel=warning
     environment:
@@ -158,8 +158,8 @@ services:
   # Optional: Nginx reverse proxy
   nginx:
     build:
-      context: .
-      dockerfile: nginx/Dockerfile
+      context: ..
+      dockerfile: docker/nginx/Dockerfile
     container_name: shortchain-nginx-prod
     ports:
       - "80:80"
